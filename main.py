@@ -309,7 +309,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     response = handle_response(new_text)
 
     # Fetch the url based on the train model
-    image_url = TRAIN_IMAGES.get(response['typ_taboru'], 'https://users.pja.edu.pl/~s28102/KM_Bot/Images/default.jpg')
+    image_url = TRAIN_IMAGES.get(response['typ_taboru'], 'https://users.pja.edu.pl/~s28102/KM_Bot/Images/default_pic.jpg')
 
     print('Bot responded with:', response)
 
