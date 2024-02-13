@@ -1,13 +1,29 @@
+import os
 import re
+
+import dotenv
 from PyPDF2 import PdfReader
 import pandas as pd
 
-PDF_PATH = 'data/pdfs/Zestawienie pociągów KM kursujących w dniach 8 II-9 III.pdf'
-CSV_PATH = 'output.csv'
+from sftp_actions import download_file_from_url, upload_to_sftp
+
+dotenv.load_dotenv()
+
+server = os.getenv('SFTP_SERVER')
+port = int(os.getenv('SFTP_PORT'))
+username = os.getenv('SFTP_USERNAME')
+password = os.getenv('SFTP_PASSWORD')
+pdf_remote_url = os.getenv('SFTP_PDFS_URL')
+csv_remote_url = os.getenv('SFTP_CSVS_URL')
+pdf_remote_dir = os.getenv('SFTP_PDFS_DIR')
+csv_remote_dir = os.getenv('SFTP_CSVS_DIR')
+
+
+PDF_IN_PATH = download_file_from_url(pdf_remote_url + '/Zestawienie pociągów KM kursujących w dniach 8 II-9 III.pdf', 'data/temp')
+CSV_OUT_PATH = 'data/temp/KM_table_current.csv'
 
 
 # Open the PDF file
-
 def extract_words_from_pdf(pdf_path):
     with open(pdf_path, 'rb') as file:
         reader = PdfReader(file)
@@ -123,7 +139,7 @@ def format_converted_csv(csv_file):
         # removes last line
         formatted_lines = formatted_lines[:-1]
 
-        with open("output_final.csv", "w", encoding='utf-8') as file:
+        with open(csv_file, "w", encoding='utf-8') as file:
             file.write('nr poc;z;odj.;do;przyj.;typ taboru;ilość;termin kursowania\n')
 
             for line in formatted_lines:
@@ -184,6 +200,11 @@ def format_converted_csv(csv_file):
                 file.write(formatted_line)
 
 
-words = extract_words_from_pdf(PDF_PATH)
-save_words_to_csv(words, CSV_PATH)
-format_converted_csv(CSV_PATH)
+words = extract_words_from_pdf(PDF_IN_PATH)
+save_words_to_csv(words, CSV_OUT_PATH)
+format_converted_csv(CSV_OUT_PATH)
+
+if os.path.exists(CSV_OUT_PATH):
+    upload_to_sftp(server, username, password, CSV_OUT_PATH, csv_remote_dir)
+else:
+    print(f"The file {CSV_OUT_PATH} does not exist.")
