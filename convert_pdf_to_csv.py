@@ -164,7 +164,7 @@ def format_converted_csv(csv_file):
                 columns.append(split_line[i])
                 i += 1
 
-                for j, element in enumerate(split_line[i:]):
+                for j in range(i, len(split_line)):
                     if not split_line[j].startswith(('0', '1', '2')):
                         temp += split_line[j] + ' '
                         i += 1
