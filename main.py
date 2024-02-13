@@ -1,3 +1,4 @@
+import os
 import time
 from datetime import datetime
 import csv
@@ -6,9 +7,11 @@ from typing import Final
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import requests
+from dotenv import load_dotenv
 
 # Constants
-TOKEN: Final = '6712970341:AAGlXVkoNV-Jxic-wULLkJRcUCcQCxB_sww'
+load_dotenv()
+api_key = os.getenv('TELEGRAM_API_TOKEN')
 BOT_USERNAME: Final = '@kmkobot'
 CSV_FILE_PATH = 'data/KM_table_csv_combined.csv'
 MONTH_ROMAN_NUMERALS = {
@@ -44,20 +47,6 @@ TRAIN_IMAGES = {
     'Kibel EN71': 'https://users.pja.edu.pl/~s28102/KM_Bot/Images/EN_71.jpg',
     'SN82 (dzierżawiony od SKPL)': 'https://users.pja.edu.pl/~s28102/KM_Bot/Images/SN82.jpg',
 }
-
-
-def keep_alive_ping():
-    while True:
-        try:
-            # Wysyłaj zapytanie GET do dowolnego zasobu (może być np. strona główna bota)
-            response = requests.get(
-                'https://api.telegram.org/bot6712970341:AAGlXVkoNV-Jxic-wULLkJRcUCcQCxB_sww/getMe')  # Zmień YOUR_BOT_TOKEN na swój token
-            print(f'Ping response: {response.status_code}')
-        except Exception as e:
-            print(f'Ping error: {e}')
-        finally:
-            # Odczekaj pewien czas przed ponownym pingowaniem (np. co 10 minut)
-            time.sleep(600)
 
 
 def get_train_info(reader, train_nr):
@@ -309,7 +298,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     response = handle_response(new_text)
 
     # Fetch the url based on the train model
-    image_url = TRAIN_IMAGES.get(response['typ_taboru'], 'https://users.pja.edu.pl/~s28102/KM_Bot/Images/default_pic.jpg')
+    image_url = TRAIN_IMAGES.get(response['typ_taboru'],
+                                 'https://users.pja.edu.pl/~s28102/KM_Bot/Images/default_pic.jpg')
 
     print('Bot responded with:', response)
 
@@ -326,10 +316,7 @@ async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
 if __name__ == '__main__':
     print('Starting bot...')
 
-    ping_thread = Thread(target=keep_alive_ping)
-    ping_thread.start()
-
-    app = Application.builder().token(TOKEN).build()
+    app = Application.builder().token(api_key).build()
 
     # Commands handling
     app.add_handler(CommandHandler('start', start_command))

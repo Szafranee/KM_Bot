@@ -1,22 +1,9 @@
+import shutil
+
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, unquote
 import os
-
-
-# Function to check if a PDF file has already been downloaded, and download it if not
-def check_and_download(pdf_url, pdf_name):
-    pdf_path = os.path.join("data", "pdfs", pdf_name)  # Adjusted path to the 'pdfs' folder
-    if not os.path.exists(pdf_path):
-        # Download the PDF file
-        pdf_response = requests.get(pdf_url)
-        # Save the file to disk
-        with open(pdf_path, "wb") as f:
-            f.write(pdf_response.content)
-        print(f"Downloaded: {pdf_name} ({pdf_url})")
-    else:
-        print(f"The file {pdf_name} already exists.")
-
 
 # URL of the main page with train schedules
 main_url = "https://www.mazowieckie.com.pl/pl/kategoria/rozklady-jazdy"
@@ -42,6 +29,40 @@ def get_pdf_name(pdf_url):
     return pdf_name
 
 
+# List to store the names of the PDFs that are attempted to be downloaded
+current_pdfs = []
+
+
+# Function to check if a PDF file has already been downloaded, and download it if not
+def check_and_download(pdf_url, pdf_name):
+    pdf_path = os.path.join("data", "pdfs", pdf_name)  # Adjusted path to the 'pdfs' folder
+    if not os.path.exists(pdf_path):
+        # Download the PDF file
+        pdf_response = requests.get(pdf_url)
+        # Save the file to disk
+        with open(pdf_path, "wb") as f:
+            f.write(pdf_response.content)
+        print(f"Downloaded: {pdf_name} ({pdf_url})")
+    else:
+        print(f"The file {pdf_name} already exists.")
+
+    current_pdfs.append(pdf_name)
+
+
+def move_non_current_pdfs():
+    current_dir = 'data/pdfs'
+    old_dir = 'data/old'
+    os.makedirs(old_dir, exist_ok=True)  # Create the old directory if it doesn't exist
+
+    saved_pdf_files = [f for f in os.listdir(current_dir) if f.endswith('.pdf')]
+
+    # If a PDF is in the pdf_dir but not in the current_pdfs list, it is not a "newest one"
+    non_current_pdfs = [pdf for pdf in saved_pdf_files if pdf not in current_pdfs]
+
+    for pdf_file in non_current_pdfs:
+        shutil.move(os.path.join(current_dir, pdf_file), os.path.join(old_dir, pdf_file))
+
+
 # Get links to individual train schedule periods
 response = requests.get(main_url)
 soup = BeautifulSoup(response.content, "html.parser")
@@ -49,7 +70,6 @@ period_links = soup.find_all("p", class_="title")  # Changed to look for links w
 print("Number of period links found:", len(period_links))
 for link in period_links:
     print(link)  # Print out the found links for inspection
-
 
 # Get links to PDF files from each period
 for period_link in period_links:
@@ -67,3 +87,5 @@ for period_link in period_links:
         pdf_name = get_pdf_name(pdf_url)
         if pdf_name.startswith("Zestawienie pociągów KM kursujących"):
             check_and_download(pdf_url, pdf_name)
+
+move_non_current_pdfs()

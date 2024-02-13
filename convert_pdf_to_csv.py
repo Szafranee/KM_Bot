@@ -19,8 +19,8 @@ pdf_remote_dir = os.getenv('SFTP_PDFS_DIR')
 csv_remote_dir = os.getenv('SFTP_CSVS_DIR')
 
 
-PDF_IN_PATH = download_file_from_url(pdf_remote_url + '/Zestawienie pociągów KM kursujących w dniach 8 II-9 III.pdf', 'data/temp')
-CSV_OUT_PATH = 'data/temp/KM_table_current.csv'
+PDF_IN_PATH = download_file_from_url(pdf_remote_url + '/Zestawienie pociągów KM kursujących w dniach 12 II-9 III.pdf', 'data/pdfs')
+CSV_OUT_PATH = 'data/csvs/KM_table_current.csv'
 
 
 # Open the PDF file
