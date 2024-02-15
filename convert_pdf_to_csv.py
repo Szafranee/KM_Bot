@@ -1,4 +1,5 @@
 import os
+import posixpath
 import re
 
 import dotenv
@@ -18,9 +19,9 @@ csv_remote_url = os.getenv('SFTP_CSVS_URL')
 pdf_remote_dir = os.getenv('SFTP_PDFS_DIR')
 csv_remote_dir = os.getenv('SFTP_CSVS_DIR')
 
-
-PDF_IN_PATH = download_file_from_url(pdf_remote_url + '/Zestawienie pociągów KM kursujących w dniach 12 II-9 III.pdf', 'data/pdfs')
-CSV_OUT_PATH = 'data/csvs/KM_table_current.csv'
+PDF_IN_PATH = download_file_from_url(pdf_remote_url + '/Zestawienie pociągów KM kursujących w dniach 12 II-9 III.pdf',
+                                     'data/pdfs')
+CSV_OUT_PATH = 'data/temp/KM_table_current.csv'
 
 
 # Open the PDF file
@@ -67,6 +68,18 @@ def join_split_line(i, split_line, columns, condition, is_until_has):
             columns.append(temp.strip())
             break
         return i + 1
+
+
+def join_csv_files(source_dir, output_file_name, target_dir=None):
+    if target_dir is None:
+        target_dir = source_dir
+    output_file = os.path.join(target_dir, output_file_name)
+    csv_files = [os.path.join(source_dir, file) for file in os.listdir(source_dir) if file.endswith('.csv')]
+    with open(output_file, 'w', encoding='utf-8') as file:
+        file.write('nr poc;z;odj.;do;przyj.;typ taboru;ilość;termin kursowania\n')
+        for csv_file in csv_files:
+            with open(csv_file, 'r', encoding='utf-8') as f:
+                file.write(f.read())
 
 
 # converted csv formatting
@@ -140,8 +153,6 @@ def format_converted_csv(csv_file):
         formatted_lines = formatted_lines[:-1]
 
         with open(csv_file, "w", encoding='utf-8') as file:
-            file.write('nr poc;z;odj.;do;przyj.;typ taboru;ilość;termin kursowania\n')
-
             for line in formatted_lines:
                 columns = []
                 split_line = line.split()
@@ -200,11 +211,25 @@ def format_converted_csv(csv_file):
                 file.write(formatted_line)
 
 
-words = extract_words_from_pdf(PDF_IN_PATH)
-save_words_to_csv(words, CSV_OUT_PATH)
-format_converted_csv(CSV_OUT_PATH)
+# convert every pdf file in the data/pdfs directory to a csv file
+def convert_pdfs_to_csvs(source_dir, target_dir):
+    for file in os.listdir(source_dir):
+        if file.endswith('.pdf'):
+            pdf_path = os.path.join(source_dir, file)
+            words = extract_words_from_pdf(pdf_path)
+            csv_path = os.path.join(target_dir, file.replace('.pdf', '.csv'))
+            save_words_to_csv(words, csv_path)
+            format_converted_csv(csv_path)
+    join_csv_files(source_dir, 'KM_table_current.csv')
 
-if os.path.exists(CSV_OUT_PATH):
-    upload_to_sftp(server, username, password, CSV_OUT_PATH, csv_remote_dir)
-else:
-    print(f"The file {CSV_OUT_PATH} does not exist.")
+
+def upload_converted_csv_to_sftp(server, username, password, source_path, target_dir):
+    if os.path.exists(CSV_OUT_PATH):
+        upload_to_sftp(server, username, password, CSV_OUT_PATH, csv_remote_dir)
+    else:
+        print(f"The file {CSV_OUT_PATH} does not exist.")
+
+
+def convert_and_upload_csvs_to_sftp():
+    convert_pdfs_to_csvs('data/pdfs', 'data/temp')
+    upload_converted_csv_to_sftp(server, username, password, CSV_OUT_PATH, csv_remote_dir)

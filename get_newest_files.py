@@ -1,9 +1,20 @@
 import shutil
-
+import dotenv
+import pysftp
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, unquote
 import os
+
+from sftp_actions import sync_files_to_sftp, upload_to_sftp
+
+dotenv.load_dotenv()
+
+server = os.getenv('SFTP_SERVER')
+port = int(os.getenv('SFTP_PORT'))
+username = os.getenv('SFTP_USERNAME')
+password = os.getenv('SFTP_PASSWORD')
+pdf_remote_dir = os.getenv('SFTP_PDFS_DIR')
 
 # URL of the main page with train schedules
 main_url = "https://www.mazowieckie.com.pl/pl/kategoria/rozklady-jazdy"
@@ -63,29 +74,33 @@ def move_non_current_pdfs():
         shutil.move(os.path.join(current_dir, pdf_file), os.path.join(old_dir, pdf_file))
 
 
-# Get links to individual train schedule periods
-response = requests.get(main_url)
-soup = BeautifulSoup(response.content, "html.parser")
-period_links = soup.find_all("p", class_="title")  # Changed to look for links with class "title"
-print("Number of period links found:", len(period_links))
-for link in period_links:
-    print(link)  # Print out the found links for inspection
+def download_and_sync_pdfs(main_url, pdf_remote_dir, current_pdfs, server, username, password):
+    # Get links to individual train schedule periods
+    response = requests.get(main_url)
+    soup = BeautifulSoup(response.content, "html.parser")
+    period_links = soup.find_all("p", class_="title")  # Changed to look for links with class "title"
+    print("Number of period links found:", len(period_links))
+    for link in period_links:
+        print(link)  # Print out the found links for inspection
 
-# Get links to PDF files from each period
-for period_link in period_links:
-    period_url = period_link.find_next("a")["href"]  # Find the next <a> tag and get its href attribute
+    # Get links to PDF files from each period
+    for period_link in period_links:
+        period_url = period_link.find_next("a")["href"]  # Find the next <a> tag and get its href attribute
 
-    # if period_url is a not a valid URL skip it
-    if not period_url.startswith("http"):
-        continue
+        # if period_url is a not a valid URL skip it
+        if not period_url.startswith("http"):
+            continue
 
-    #
+        pdf_links = get_pdf_links(period_url)
+        for link in pdf_links:
+            pdf_url = urljoin(period_url, link["href"])  # Construct the full PDF URL
+            pdf_name = get_pdf_name(pdf_url)
+            if pdf_name.startswith("Zestawienie pociągów KM kursujących"):
+                print(pdf_name)
+                check_and_download(pdf_url, pdf_name)
 
-    pdf_links = get_pdf_links(period_url)
-    for link in pdf_links:
-        pdf_url = urljoin(period_url, link["href"])  # Construct the full PDF URL
-        pdf_name = get_pdf_name(pdf_url)
-        if pdf_name.startswith("Zestawienie pociągów KM kursujących"):
-            check_and_download(pdf_url, pdf_name)
+    move_non_current_pdfs()
+    sync_files_to_sftp(server, username, password, 'data/pdfs', pdf_remote_dir, current_pdfs)
 
-move_non_current_pdfs()
+
+download_and_sync_pdfs(main_url, pdf_remote_dir, current_pdfs, server, username, password)

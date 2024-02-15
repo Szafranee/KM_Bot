@@ -1,19 +1,19 @@
 import os
-import time
 from datetime import datetime
 import csv
-from threading import Thread
 from typing import Final
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-import requests
 from dotenv import load_dotenv
+
+from sftp_actions import download_file_from_url
 
 # Constants
 load_dotenv()
 api_key = os.getenv('TELEGRAM_API_TOKEN')
 BOT_USERNAME: Final = '@kmkobot'
-CSV_FILE_PATH = 'data/KM_table_csv_combined.csv'
+REMOTE_CSV_FILE_URL = 'https://users.pja.edu.pl/~s28102/KM_Bot/data/csvs/KM_table_current.csv'
+LOCAL_CSV_FILE_PATH = download_file_from_url(REMOTE_CSV_FILE_URL, 'data/csvs', 'KM_table_current.csv')
 MONTH_ROMAN_NUMERALS = {
     'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6,
     'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10, 'XI': 11, 'XII': 12
@@ -71,14 +71,14 @@ def get_train_info(reader, train_nr):
 
 
 def get_train_info_from_nr(train_nr: str):
-    with open(CSV_FILE_PATH, newline='', encoding='utf-8') as csvfile:
+    with open(LOCAL_CSV_FILE_PATH, newline='', encoding='utf-8') as csvfile:
         reader = csv.reader(csvfile, delimiter=';')
         next(reader, None)  # skip the headers
         return get_train_info(reader, train_nr)
 
 
 def get_train_info_from_stations(start_station: str, end_station: str, time: str):
-    with open(CSV_FILE_PATH, newline='', encoding='utf-8') as csvfile:
+    with open(LOCAL_CSV_FILE_PATH, newline='', encoding='utf-8') as csvfile:
         reader = csv.reader(csvfile, delimiter=';')
         next(reader, None)  # skip the headers
 
