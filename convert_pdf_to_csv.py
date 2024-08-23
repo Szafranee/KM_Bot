@@ -1,3 +1,4 @@
+import re
 import os
 import posixpath
 import re
@@ -19,8 +20,8 @@ csv_remote_url = os.getenv('SFTP_CSVS_URL')
 pdf_remote_dir = os.getenv('SFTP_PDFS_DIR')
 csv_remote_dir = os.getenv('SFTP_CSVS_DIR')
 
-PDF_IN_PATH = download_file_from_url(pdf_remote_url + '/Zestawienie pociągów KM kursujących w dniach 12 II-9 III.pdf',
-                                     'data/pdfs')
+# PDF_IN_PATH = download_file_from_url(pdf_remote_url + '/Zestawienie pociągów KM kursujących w dniach 12 II-9 III.pdf',
+#                                      'data/pdfs')
 CSV_OUT_PATH = 'data/temp/KM_table_current.csv'
 
 
@@ -46,9 +47,9 @@ def replace_second_occurrence(pattern, replacement, string):
     return re.sub(pattern, replacer, string, count=2)
 
 
-def join_split_line(i, split_line, columns, condition, is_until_has):
-    # if is_until_has is True, then join until the condition is not found
-    if is_until_has:
+def join_split_line(i, split_line, columns, condition, until_has):
+    # if until_has is True, then join until the condition is not found
+    if until_has:
         for j in range(i, len(split_line)):
             temp = split_line[j] + ' '
             while j + 1 < len(split_line) and condition in split_line[j]:
@@ -84,131 +85,200 @@ def join_csv_files(source_dir, output_file_name, target_dir=None):
 
 # converted csv formatting
 def format_converted_csv(csv_file):
+    formatted_lines = read_csv_file(csv_file)
+    formatted_lines = initial_formatting(formatted_lines)
+    formatted_lines = additional_formatting_station_names(formatted_lines)
+    formatted_lines = additional_formatting_train_models(formatted_lines)
+    formatted_lines = remove_empty_lines(formatted_lines)
+    formatted_lines = remove_n_last_lines(formatted_lines, 2)
+    formatted_lines = combine_columns_into_lines(formatted_lines)
+    return formatted_lines
+
+
+def read_csv_file(csv_file):
     with open(csv_file, 'r', encoding='utf-8') as file:
-        formatted_lines = []
-        date_pattern = r'\d{8} - \d{8}'
+        return [line for line in file]
 
-        for line in file:
-            # removes lowercase letters from each line
-            formatted_line = "".join(char for char in line if not char.islower())
 
-            # removes periods (.) from each line
-            formatted_line = formatted_line.replace(".", "")
+def initial_formatting(formatted_lines):
+    """
+    Function to perform initial formatting on a list of lines by removing lowercase letters, periods, double quotes,
+    and date patterns in the format 'YYYYMMDD - YYYYMMDD'.
 
-            # removes quotes ("") from each line
-            formatted_line = formatted_line.replace('"', "")
+    Parameters:
+    - formatted_lines: A list of strings representing the lines to be formatted.
 
-            # Pattern to match dates in the format "08022024 - 09032024"
-            formatted_line = re.sub(date_pattern, '', formatted_line)
+    Returns:
+    A list of strings with the specified characters and date patterns removed.
+    """
 
-            formatted_lines.append(formatted_line)
+    date_pattern = r'\d{8} - \d{8}'
+    cleaned_lines = []
+    for line in formatted_lines:
+        formatted_line = re.sub(r'[a-ząćęłńóśźż.]|"', '', line)
+        formatted_line = re.sub(date_pattern, '', formatted_line)
+        cleaned_lines.append(formatted_line)
+    return cleaned_lines
 
-        for i, line in enumerate(formatted_lines):
-            if line.endswith("PERON \n"):
-                # adds space before "WARSZAWA"
-                formatted_lines[i] = re.sub(r'WARSZAWA', r' WARSZAWA', line)
 
-                # splices the next line to the current line
-                formatted_lines[i] = formatted_lines[i].strip('\n') + ' ' + formatted_lines[i + 1]
+def additional_formatting_station_names(formatted_lines):
+    """
+    Perform additional formatting on station names in the provided list of lines.
 
-                # adds space after first "9" after "PERON" in formatted_lines[i]
-                formatted_lines[i] = re.sub(r'PERON {2}9', r'PERON 9 ', formatted_lines[i])
+    This function specifically looks for lines ending with "PERON \n" or "LOTNISKO \n" and applies the following changes:
+    - Adds a space before "WARSZAWA" if it is found in the line.
+    - Combines the current line with the next line.
+    - Replaces "PERON  9" with "PERON 9 ".
+    - Replaces "LOTNISKO  CHOPINA" with "LOTNISKO CHOPINA ".
+    - Clears the next line after combining.
 
-                formatted_lines[i + 1] = ""
+    Parameters:
+    formatted_lines (list of str): The list of lines to be formatted.
 
-        for i, line in enumerate(formatted_lines):
-            if line.endswith("LOTNISKO \n"):
-                # adds space before "WARSZAWA"
-                formatted_lines[i] = re.sub(r'WARSZAWA', r' WARSZAWA', line)
+    Returns:
+    list of str: The formatted list of lines.
+    """
+    for i, line in enumerate(formatted_lines):
+        if line.endswith("PERON \n"):
+            line = re.sub(r'WARSZAWA', r' WARSZAWA', line)
+            formatted_lines[i] = line.strip('\n') + ' ' + formatted_lines[i + 1]
+            line = re.sub(r'PERON {2}9', r'PERON 9 ', formatted_lines[i])
+            formatted_lines[i] = line
+            formatted_lines[i + 1] = ""
+        elif line.endswith("LOTNISKO \n"):
+            line = re.sub(r'WARSZAWA', r' WARSZAWA', line)
+            formatted_lines[i] = line.strip('\n') + ' ' + formatted_lines[i + 1]
+            line = re.sub(r'LOTNISKO {2}CHOPINA', r'LOTNISKO CHOPINA ', formatted_lines[i])
+            formatted_lines[i] = line
+            formatted_lines[i + 1] = ""
+    return formatted_lines
 
-                # splices the next line to the current line
-                formatted_lines[i] = formatted_lines[i].strip('\n') + ' ' + formatted_lines[i + 1]
 
-                # adds space after first "9" after "PERON" in formatted_lines[i]
-                formatted_lines[i] = re.sub(r'LOTNISKO {2}CHOPINA', r'LOTNISKO CHOPINA ', formatted_lines[i])
+def additional_formatting_train_models(formatted_lines):
+    """
+    Perform additional formatting on train models in the provided list of lines.
 
-                formatted_lines[i + 1] = ""
+    This function applies the following changes:
+    - Replaces specific train model codes with their corresponding formatted versions.
+    - Replaces the second occurrence of 'B' with 'Bs' in each line.
+    - Replaces the second occurrence of 'P' with 'Ps' in each line.
 
-        pattern_mapping = {
-            r'EN57ALKM': r'EN57ALwKM',
-            r'EN57AKM1': r'EN57AKMw1',
-            r'45WE': r'45WEkm',
-            r'111E': r'111Eb',
-        }
-        # replaces patterns in formatted_lines
-        for i, line in enumerate(formatted_lines):
-            for pattern, replacement in pattern_mapping.items():
-                formatted_lines[i] = re.sub(pattern, replacement, formatted_lines[i])
+    Parameters:
+    formatted_lines (list of str): The list of lines to be formatted.
 
-        # replaces SECOND standalone "B" with "Bs"
-        formatted_lines = [replace_second_occurrence(r'\bB\b', 'Bs', line) for line in formatted_lines]
+    Returns:
+    list of str: The formatted list of lines.
+    """
+    pattern_mapping = {
+        r'EN57ALKM': r'EN57ALwKM',
+        r'EN57AKM1': r'EN57AKMw1',
+        r'45WE': r'45WEkm',
+        r'111E': r'111Eb',
+    }
+    for i, line in enumerate(formatted_lines):
+        for pattern, replacement in pattern_mapping.items():
+            formatted_lines[i] = re.sub(pattern, replacement, formatted_lines[i])
+    formatted_lines = [re.sub(r'\bB\b', 'Bs', line, count=2) for line in formatted_lines]
+    formatted_lines = [re.sub(r'\bP\b', 'Ps', line, count=2) for line in formatted_lines]
+    return formatted_lines
 
-        # replaces SECOND standalone "P" with "Ps"
-        formatted_lines = [replace_second_occurrence(r'\bP\b', 'Ps', line) for line in formatted_lines]
 
-        # removes empty lines
-        formatted_lines = [line for line in formatted_lines if line.strip()]
+def remove_empty_lines(formatted_lines):
+    return [line for line in formatted_lines if line.strip()]
 
-        # removes last line
-        formatted_lines = formatted_lines[:-1]
 
-        with open(csv_file, "w", encoding='utf-8') as file:
-            for line in formatted_lines:
-                columns = []
-                split_line = line.split()
+def remove_n_last_lines(formatted_lines, n):
+    return formatted_lines[:-n]
 
-                i = 0
-                temp = ''
 
-                columns.append(split_line[i])
+def combine_columns_into_lines(formatted_lines):
+    """
+    Combine columns into lines for the provided list of formatted lines.
+
+    This function processes each line by splitting it into columns and then combining
+    the columns into a single line separated by semicolons. It ensures that columns
+    starting with digits (0, 1, 2) - time columns, are treated as separate columns.
+
+    Parameters:
+    formatted_lines (list of str): The list of formatted lines to be processed.
+
+    Returns:
+    list of str: The list of combined lines.
+    """
+    combined_lines = []
+    for line in formatted_lines:
+        count = 0
+        print("nr: ", count)
+        print("line: ", line)
+        count += 1
+
+        columns = line.split()
+        combined_columns = [columns[0]]
+        combined_columns_counter = 1
+        i = 1
+        while combined_columns_counter < 5:
+            temp = ''
+            while i < len(columns) and not columns[i].startswith(('0', '1', '2')):
+                temp += columns[i] + ' '
                 i += 1
 
-                for j in range(i, len(split_line)):
-                    if not split_line[j].startswith(('0', '1', '2')):
-                        temp += split_line[j] + ' '
-                        i += 1
-                    else:
-                        columns.append(temp.strip())
-                        temp = ''
-                        break
+            combined_columns.append(temp.strip())
+            combined_columns_counter += 1
 
-                columns.append(split_line[i])
+            if i < len(columns):
+                combined_columns.append(columns[i])
+                combined_columns_counter += 1
                 i += 1
 
-                for j in range(i, len(split_line)):
-                    if not split_line[j].startswith(('0', '1', '2')):
-                        temp += split_line[j] + ' '
-                        i += 1
-                    else:
-                        columns.append(temp.strip())
-                        temp = ''
-                        break
-
-                columns.append(split_line[i])
-                i += 1
-
-                if ',' in split_line[i]:
-                    i = join_split_line(i, split_line, columns, ',', True)
-                else:
-                    columns.append(split_line[i])
+        # combine multi column train models
+        if columns[i].startswith(('111Eb', 'EU47')):
+            # combine until the next column is a digit
+            for j in range(i, len(columns)):
+                temp = columns[j] + ' '
+                while j + 1 < len(columns) and not columns[j + 1].startswith(
+                        ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')):
+                    temp += columns[j + 1] + ' '
+                    j += 1
                     i += 1
+                combined_columns.append(temp.strip())
+                break
+        else:
+            combined_columns.append(columns[i])
+        i += 1
 
-                if ',' in split_line[i]:
-                    i = join_split_line(i, split_line, columns, ',', True)
-                else:
-                    columns.append(split_line[i])
+        # combine multi column train counts
+        if columns[i].endswith(','):
+            for j in range(i, len(columns)):
+                temp = columns[j] + ' '
+                while j + 1 < len(columns) and columns[j + 1].endswith(','):
+                    temp += columns[j + 1] + ' '
+                    j += 1
                     i += 1
+                temp += columns[j + 1]
+                i += 1
 
-                temp = ''
-                for j in range(i, len(split_line)):
-                    temp += split_line[j] + ' '
-                columns.append(temp.strip())
+                combined_columns.append(temp.strip())
+                break
+        else:
+            combined_columns.append(columns[i])
+        i += 1
 
-                columns = [column.strip(' ').strip('\n') for column in columns]
+        dates = ''
+        while i < len(columns):
+            dates += columns[i] + ' '
+            i += 1
 
-                formatted_line = ';'.join(columns) + '\n'
+        combined_columns.append(dates.strip())
 
-                file.write(formatted_line)
+        if not combined_columns[-1] == '':
+            combined_lines.append(';'.join(combined_columns) + '\n')
+
+    return combined_lines
+
+
+def write_csv_file(formatted_lines, csv_file):
+    with open(csv_file, 'w', encoding='utf-8') as file:
+        file.writelines(formatted_lines)
 
 
 # convert every pdf file in the data/pdfs directory to a csv file
@@ -220,6 +290,7 @@ def convert_pdfs_to_csvs(source_dir, target_dir):
             csv_path = os.path.join(target_dir, file.replace('.pdf', '.csv'))
             save_words_to_csv(words, csv_path)
             format_converted_csv(csv_path)
+            write_csv_file(format_converted_csv(csv_path), csv_path)
     join_csv_files(source_dir, 'KM_table_current.csv')
 
 
@@ -233,3 +304,7 @@ def upload_converted_csv_to_sftp(server, username, password, source_path, target
 def convert_and_upload_csvs_to_sftp():
     convert_pdfs_to_csvs('data/pdfs', 'data/temp')
     upload_converted_csv_to_sftp(server, username, password, CSV_OUT_PATH, csv_remote_dir)
+
+
+if __name__ == '__main__':
+    convert_pdfs_to_csvs('data/pdfs', 'data/temp')
