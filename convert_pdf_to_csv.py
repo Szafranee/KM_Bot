@@ -1,6 +1,4 @@
-import re
 import os
-import posixpath
 import re
 
 import dotenv
@@ -23,6 +21,9 @@ csv_remote_dir = os.getenv('SFTP_CSVS_DIR')
 # PDF_IN_PATH = download_file_from_url(pdf_remote_url + '/Zestawienie pociągów KM kursujących w dniach 12 II-9 III.pdf',
 #                                      'data/pdfs')
 CSV_OUT_PATH = 'data/temp/KM_table_current.csv'
+
+TRAIN_MODELS = ['ER75', 'ER160', '45WEkm', 'EN76', 'SA135', 'SA222', 'Vt627', '111Eb', 'EU47', 'EN57wKM', 'EN57AKMw1',
+                'EN57ALwKM', 'EN71KM', 'SN82']
 
 
 # Open the PDF file
@@ -87,11 +88,14 @@ def join_csv_files(source_dir, output_file_name, target_dir=None):
 def format_converted_csv(csv_file):
     formatted_lines = read_csv_file(csv_file)
     formatted_lines = initial_formatting(formatted_lines)
+    formatted_lines = additional_formatting_dates(formatted_lines)
     formatted_lines = additional_formatting_station_names(formatted_lines)
     formatted_lines = additional_formatting_train_models(formatted_lines)
     formatted_lines = remove_empty_lines(formatted_lines)
-    formatted_lines = remove_n_last_lines(formatted_lines, 2)
+    formatted_lines = separate_train_counts_from_date(formatted_lines)
+    formatted_lines = remove_n_last_lines(formatted_lines, 1)
     formatted_lines = combine_columns_into_lines(formatted_lines)
+    formatted_lines = final_dates_formatting_and_cleanup(formatted_lines)
     return formatted_lines
 
 
@@ -103,7 +107,7 @@ def read_csv_file(csv_file):
 def initial_formatting(formatted_lines):
     """
     Function to perform initial formatting on a list of lines by removing lowercase letters, periods, double quotes,
-    and date patterns in the format 'YYYYMMDD - YYYYMMDD'.
+    and date patterns in the format 'YYYY-MM-DD - YYYY-MM-DD'.
 
     Parameters:
     - formatted_lines: A list of strings representing the lines to be formatted.
@@ -112,13 +116,24 @@ def initial_formatting(formatted_lines):
     A list of strings with the specified characters and date patterns removed.
     """
 
-    date_pattern = r'\d{8} - \d{8}'
+    date_pattern = r'\d{4}-\d{2}-\d{2} - \d{4}-\d{2}-\d{2}'
     cleaned_lines = []
     for line in formatted_lines:
         formatted_line = re.sub(r'[a-ząćęłńóśźż.]|"', '', line)
         formatted_line = re.sub(date_pattern, '', formatted_line)
         cleaned_lines.append(formatted_line)
     return cleaned_lines
+
+
+def additional_formatting_dates(formatted_lines):
+    for i, line in enumerate(formatted_lines):
+        # if line ends with a digit and next starts with a month in roman numerals
+        if (line.endswith(('0 \n', '1 \n', '2 \n', '3 \n', '4 \n', '5 \n', '6 \n', '7 \n', '8 \n', '9 \n'))
+                and re.match(r'\b[I|V|X]+\b', formatted_lines[i + 1].strip())):
+            formatted_lines[i] = line + ' ' + formatted_lines[i + 1]
+            formatted_lines[i + 1] = ""
+
+    return formatted_lines
 
 
 def additional_formatting_station_names(formatted_lines):
@@ -187,6 +202,39 @@ def remove_empty_lines(formatted_lines):
     return [line for line in formatted_lines if line.strip()]
 
 
+def separate_train_counts_from_date(formatted_lines):
+    """
+    Separate train counts from dates in the provided list of formatted lines.
+
+    This function iterates over each line and splits it into words. If a word matches a train model
+    from the TRAIN_MODELS list and the next word has a length of 2 or 3, it inserts a space in the next word.
+
+    Parameters:
+    formatted_lines (list of str): The list of lines to be processed.
+
+    Returns:
+    list of str: The formatted list of lines with train counts separated from dates.
+    """
+    for i, line in enumerate(formatted_lines):
+        split_line = line.split(' ')
+        numbers_separated = False
+        for j in range(len(split_line)):
+            if numbers_separated:
+                break
+
+            if split_line[j].strip(",. ") in TRAIN_MODELS:
+                for k in range(j + 1, len(split_line)):
+                    if '-' in split_line[k]:
+                        split_by_dash = split_line[k].split('-')
+                        if len(split_by_dash[0]) == 2 or len(split_by_dash[0]) == 3:
+                            split_line[k] = split_line[k][0] + ' ' + split_line[k][1:]
+                            numbers_separated = True
+                            break
+
+        formatted_lines[i] = ' '.join(split_line)
+    return formatted_lines
+
+
 def remove_n_last_lines(formatted_lines, n):
     return formatted_lines[:-n]
 
@@ -208,8 +256,6 @@ def combine_columns_into_lines(formatted_lines):
     combined_lines = []
     for line in formatted_lines:
         count = 0
-        print("nr: ", count)
-        print("line: ", line)
         count += 1
 
         columns = line.split()
@@ -303,7 +349,7 @@ def upload_converted_csv_to_sftp(server, username, password, source_path, target
 
 def convert_and_upload_csvs_to_sftp():
     convert_pdfs_to_csvs('data/pdfs', 'data/temp')
-    upload_converted_csv_to_sftp(server, username, password, CSV_OUT_PATH, csv_remote_dir)
+    # upload_converted_csv_to_sftp(server, username, password, CSV_OUT_PATH, csv_remote_dir)
 
 
 if __name__ == '__main__':
