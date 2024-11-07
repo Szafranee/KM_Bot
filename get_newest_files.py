@@ -17,7 +17,7 @@ password = os.getenv('SFTP_PASSWORD')
 pdf_remote_dir = os.getenv('SFTP_PDFS_DIR')
 
 # URL of the main page with train schedules
-main_url = "https://www.mazowieckie.com.pl/pl/kategoria/rozklady-jazdy"
+MAIN_URL = "https://www.mazowieckie.com.pl/pl/kategoria/rozklady-jazdy"
 
 
 # Function to get links to PDF files from a given page
@@ -74,7 +74,7 @@ def move_non_current_pdfs():
         shutil.move(os.path.join(current_dir, pdf_file), os.path.join(old_dir, pdf_file))
 
 
-def download_and_sync_pdfs(main_url, pdf_remote_dir, current_pdfs, server, username, password):
+def download_pdfs(main_url):
     # Get links to individual train schedule periods
     response = requests.get(main_url)
     soup = BeautifulSoup(response.content, "html.parser")
@@ -99,8 +99,16 @@ def download_and_sync_pdfs(main_url, pdf_remote_dir, current_pdfs, server, usern
                 print(pdf_name)
                 check_and_download(pdf_url, pdf_name)
 
+
+def download_and_sync_pdfs(main_url, pdf_remote_dir, current_pdfs, server, username, password):
+    download_pdfs(main_url)
     move_non_current_pdfs()
     sync_files_to_sftp(server, username, password, 'data/pdfs', pdf_remote_dir, current_pdfs)
 
 
-download_and_sync_pdfs(main_url, pdf_remote_dir, current_pdfs, server, username, password)
+def download_and_leave_newest_pdfs(main_url):
+    download_pdfs(main_url)
+    move_non_current_pdfs()
+
+
+download_and_leave_newest_pdfs(MAIN_URL)
