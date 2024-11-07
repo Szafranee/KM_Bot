@@ -38,14 +38,14 @@ def save_words_to_csv(words, csv_path):
     pd.DataFrame(words).to_csv(csv_path, header=False, index=False)
 
 
-def replace_second_occurrence(pattern, replacement, string):
-    count = [0]
-
-    def replacer(match):
-        count[0] += 1
-        return replacement if count[0] == 2 else match.group(0)
-
-    return re.sub(pattern, replacer, string, count=2)
+# def replace_second_occurrence(pattern, replacement, string):
+#     count = [0]
+#
+#     def replacer(match):
+#         count[0] += 1
+#         return replacement if count[0] == 2 else match.group(0)
+#
+#     return re.sub(pattern, replacer, string, count=2)
 
 
 def join_split_line(i, split_line, columns, condition, until_has):
@@ -221,12 +221,11 @@ def separate_train_counts_from_date(formatted_lines):
         for j in range(len(split_line)):
             if numbers_separated:
                 break
-
             if split_line[j].strip(",. ") in TRAIN_MODELS:
                 for k in range(j + 1, len(split_line)):
                     if '-' in split_line[k]:
                         split_by_dash = split_line[k].split('-')
-                        if len(split_by_dash[0]) == 2 or len(split_by_dash[0]) == 3:
+                        if (len(split_by_dash[0]) == 2 or len(split_by_dash[0]) == 3) and split_by_dash[0].isdigit():
                             split_line[k] = split_line[k][0] + ' ' + split_line[k][1:]
                             numbers_separated = True
                             break
@@ -320,6 +319,52 @@ def combine_columns_into_lines(formatted_lines):
             combined_lines.append(';'.join(combined_columns) + '\n')
 
     return combined_lines
+
+
+def final_dates_formatting_and_cleanup(formatted_lines):
+    roman_months_to_arabic = {
+        'I': '01',
+        'II': '02',
+        'III': '03',
+        'IV': '04',
+        'V': '05',
+        'VI': '06',
+        'VII': '07',
+        'VIII': '08',
+        'IX': '09',
+        'X': '10',
+        'XI': '11',
+        'XII': '12'
+    }
+
+    for i, line in enumerate(formatted_lines):
+        split_line = line.split(';')
+        split_dates = split_line[-1].split(',')
+
+        for j, date in enumerate(split_dates):
+            date = date.replace(' ', '.')
+            roman_number = re.search(r'\b[I|V|X]+\b', date)
+            # count the number of roman numbers in the date, if there are two or more:
+            if roman_number is not None and len(re.findall(r'\b[I|V|X]+\b', date)) > 1:
+                months = re.findall(r'\b[I|V|X]+\b', date)
+                for month in months:
+                    date = date.replace(month, roman_months_to_arabic[month])
+            elif roman_number is not None:
+                month = roman_months_to_arabic[roman_number.group()]
+                days_range = re.search(r'\d{1,2}-\d{1,2}', date)
+                if days_range is not None:
+                    days = days_range.group().split('-')
+                    date = f'{days[0]}.{month}-{days[1]}.{month}'
+                else:
+                    date = f'{date[:2]}.{month}'
+            split_dates[j] = date
+
+        formatted_dates = ', '.join(split_dates)
+        if not formatted_dates.endswith('\n'):
+            formatted_dates += '\n'
+        split_line[-1] = formatted_dates
+        formatted_lines[i] = ';'.join(split_line)
+    return formatted_lines
 
 
 def write_csv_file(formatted_lines, csv_file):
