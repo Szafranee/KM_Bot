@@ -41,7 +41,7 @@ def get_pdf_name(pdf_url):
 
 
 # List to store the names of the PDFs that are attempted to be downloaded
-current_pdfs = []
+CURRENT_PDFS = []
 
 
 # Function to check if a PDF file has already been downloaded, and download it if not
@@ -57,18 +57,16 @@ def check_and_download(pdf_url, pdf_name):
     else:
         print(f"The file {pdf_name} already exists.")
 
-    current_pdfs.append(pdf_name)
+    CURRENT_PDFS.append(pdf_name)
 
 
-def move_non_current_pdfs():
-    current_dir = 'data/pdfs'
-    old_dir = 'data/old'
+def move_non_current_pdfs(current_dir, old_dir):
     os.makedirs(old_dir, exist_ok=True)  # Create the old directory if it doesn't exist
 
     saved_pdf_files = [f for f in os.listdir(current_dir) if f.endswith('.pdf')]
 
     # If a PDF is in the pdf_dir but not in the current_pdfs list, it is not a "newest one"
-    non_current_pdfs = [pdf for pdf in saved_pdf_files if pdf not in current_pdfs]
+    non_current_pdfs = [pdf for pdf in saved_pdf_files if pdf not in CURRENT_PDFS]
 
     for pdf_file in non_current_pdfs:
         shutil.move(os.path.join(current_dir, pdf_file), os.path.join(old_dir, pdf_file))
@@ -108,7 +106,8 @@ def download_and_sync_pdfs(main_url, pdf_remote_dir, current_pdfs, server, usern
 
 def download_and_leave_newest_pdfs(main_url):
     download_pdfs(main_url)
-    move_non_current_pdfs()
+    move_non_current_pdfs('data/pdfs', 'data/old')
 
 
-download_and_leave_newest_pdfs(MAIN_URL)
+if __name__ == "__main__":
+    download_and_leave_newest_pdfs(MAIN_URL)
