@@ -392,19 +392,6 @@ def write_csv_file(formatted_lines, csv_file):
     with open(csv_file, 'w', encoding='utf-8') as file:
         file.writelines(formatted_lines)
 
-
-def upload_converted_csv_to_sftp(server, username, password, source_path, target_dir):
-    if os.path.exists(CSV_OUT_PATH):
-        upload_to_sftp(server, username, password, CSV_OUT_PATH, csv_remote_dir)
-    else:
-        print(f"The file {CSV_OUT_PATH} does not exist.")
-
-
-def convert_and_upload_csvs_to_sftp():
-    convert_pdfs_to_csvs('data/pdfs', 'data/temp')
-    # upload_converted_csv_to_sftp(server, username, password, CSV_OUT_PATH, csv_remote_dir)
-
-
 # convert every pdf file in the data/pdfs directory to a csv file
 def convert_pdfs_to_csvs(source_dir, target_dir):
     for file in os.listdir(source_dir):
@@ -414,9 +401,9 @@ def convert_pdfs_to_csvs(source_dir, target_dir):
             words = extract_words_from_pdf(pdf_path)
             csv_path = os.path.join(target_dir, file.replace('.pdf', '.csv'))
             save_words_to_csv(words, csv_path)
-            format_converted_csv(csv_path)
+            format_converted_csv(csv_path) # main formatting!
             write_csv_file(format_converted_csv(csv_path), csv_path)
-    join_csv_files(source_dir, 'KM_table_current.csv')
+    join_csv_files('data/temp', 'KM_table_current.csv', 'data/csvs')
 
 
 if __name__ == '__main__':
