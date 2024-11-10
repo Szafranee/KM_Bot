@@ -84,7 +84,8 @@ def join_csv_files(source_dir, output_file_name, target_dir=None):
                 file.write(f.read())
 
 
-# converted csv formatting
+# ======================== FORMATTING ========================
+
 def format_converted_csv(csv_file):
     formatted_lines = read_csv_file(csv_file)
     formatted_lines = initial_formatting(formatted_lines)
@@ -99,6 +100,7 @@ def format_converted_csv(csv_file):
     return formatted_lines
 
 
+# converted csv formatting
 def read_csv_file(csv_file):
     with open(csv_file, 'r', encoding='utf-8') as file:
         return [line for line in file]
@@ -119,6 +121,8 @@ def initial_formatting(formatted_lines):
     date_pattern = r'\d{4}-\d{2}-\d{2} - \d{4}-\d{2}-\d{2}'
     cleaned_lines = []
     for line in formatted_lines:
+        if 'okres obowiązywania' in line:
+            line = ''
         formatted_line = re.sub(r'[a-ząćęłńóśźż.]|"', '', line)
         formatted_line = re.sub(date_pattern, '', formatted_line)
         cleaned_lines.append(formatted_line)
@@ -338,51 +342,55 @@ def final_dates_formatting_and_cleanup(formatted_lines):
     }
 
     for i, line in enumerate(formatted_lines):
-        split_line = line.split(';')
-        split_dates = split_line[-1].split(',')
+        columns = line.split(';')
+        split_dates_string = columns[-1]
 
-        for j, date in enumerate(split_dates):
-            date = date.replace(' ', '.')
-            roman_number = re.search(r'\b[I|V|X]+\b', date)
-            # count the number of roman numbers in the date, if there are two or more:
-            if roman_number is not None and len(re.findall(r'\b[I|V|X]+\b', date)) > 1:
-                months = re.findall(r'\b[I|V|X]+\b', date)
-                for month in months:
-                    date = date.replace(month, roman_months_to_arabic[month])
-            elif roman_number is not None:
-                month = roman_months_to_arabic[roman_number.group()]
-                days_range = re.search(r'\d{1,2}-\d{1,2}', date)
-                if days_range is not None:
-                    days = days_range.group().split('-')
-                    date = f'{days[0]}.{month}-{days[1]}.{month}'
-                else:
-                    date = f'{date[:2]}.{month}'
-            split_dates[j] = date
+        roman_number = re.search(r'[I|V|X]+\b', split_dates_string)
+        if roman_number is not None and len(re.findall(r'[I|V|X]+\b', split_dates_string)) == 1:
+            month = roman_months_to_arabic[roman_number.group()]
+            split_dates_string = split_dates_string.replace(roman_number.group(), '')
+            # add month to every number in split_dates_string
+            split_dates_string = re.sub(r'\b\d{1,2}\b', r'\g<0>.' + month, split_dates_string)
+            columns[-1] = split_dates_string
+            formatted_lines[i] = ';'.join(columns)
+        elif roman_number is not None and len(re.findall(r'[I|V|X]+\b', split_dates_string)) > 1:
+            split_dates = columns[-1].split(',')
+            split_dates = [date.strip().replace(' ', '') for date in split_dates]
 
-        formatted_dates = ', '.join(split_dates)
-        if not formatted_dates.endswith('\n'):
-            formatted_dates += '\n'
-        split_line[-1] = formatted_dates
-        formatted_lines[i] = ';'.join(split_line)
+            for j, date in enumerate(split_dates):
+                roman_number = re.search(r'[I|V|X]+\b', date)
+                # count the number of roman numbers in the date, if there are two or more:
+                if roman_number is not None and len(re.findall(r'[I|V|X]+\b', date)) > 1:
+                    months = re.findall(r'[I|V|X]+\b', date)
+                    for month in months:
+                        date = date.replace(month, '.' + roman_months_to_arabic[month])
+                elif roman_number is not None:
+                    month = roman_months_to_arabic[roman_number.group()]
+                    days_range = re.search(r'\d{1,2}-\d{1,2}', date)
+                    if days_range is not None:
+                        days = days_range.group().split('-')
+                        date = f'{days[0]}.{month}-{days[1]}.{month}'
+                    else:
+                        date = f'{date[:2]}.{month}'
+                split_dates[j] = date
+
+            formatted_dates = ','.join(split_dates)
+            if not formatted_dates.endswith('\n'):
+                formatted_dates += '\n'
+            columns[-1] = formatted_dates
+            formatted_lines[i] = ';'.join(columns)
+
+        # format every number to xx.xx
+        split_dates_string = columns[-1]
+        split_dates_string = re.sub(r'\b\d\b', r'0\g<0>', split_dates_string)
+        columns[-1] = split_dates_string
+        formatted_lines[i] = ';'.join(columns)
     return formatted_lines
 
 
 def write_csv_file(formatted_lines, csv_file):
     with open(csv_file, 'w', encoding='utf-8') as file:
         file.writelines(formatted_lines)
-
-
-# convert every pdf file in the data/pdfs directory to a csv file
-def convert_pdfs_to_csvs(source_dir, target_dir):
-    for file in os.listdir(source_dir):
-        if file.endswith('.pdf'):
-            pdf_path = os.path.join(source_dir, file)
-            words = extract_words_from_pdf(pdf_path)
-            csv_path = os.path.join(target_dir, file.replace('.pdf', '.csv'))
-            save_words_to_csv(words, csv_path)
-            format_converted_csv(csv_path)
-            write_csv_file(format_converted_csv(csv_path), csv_path)
-    join_csv_files(source_dir, 'KM_table_current.csv')
 
 
 def upload_converted_csv_to_sftp(server, username, password, source_path, target_dir):
@@ -395,6 +403,20 @@ def upload_converted_csv_to_sftp(server, username, password, source_path, target
 def convert_and_upload_csvs_to_sftp():
     convert_pdfs_to_csvs('data/pdfs', 'data/temp')
     # upload_converted_csv_to_sftp(server, username, password, CSV_OUT_PATH, csv_remote_dir)
+
+
+# convert every pdf file in the data/pdfs directory to a csv file
+def convert_pdfs_to_csvs(source_dir, target_dir):
+    for file in os.listdir(source_dir):
+        print(file)
+        if file.endswith('.pdf'):
+            pdf_path = os.path.join(source_dir, file)
+            words = extract_words_from_pdf(pdf_path)
+            csv_path = os.path.join(target_dir, file.replace('.pdf', '.csv'))
+            save_words_to_csv(words, csv_path)
+            format_converted_csv(csv_path)
+            write_csv_file(format_converted_csv(csv_path), csv_path)
+    join_csv_files(source_dir, 'KM_table_current.csv')
 
 
 if __name__ == '__main__':
