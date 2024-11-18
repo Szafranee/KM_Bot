@@ -217,17 +217,17 @@ def format_train_info(row: list):
     train_model_mapping = {
         'ER75': 'Flirt 1',
         'ER160': 'Flirt 3',
-        '45WE': 'Impuls',
+        '45WEkm': 'Impuls',
         'EN76': 'Elf',
         'SA135': 'SA135',
         'SA222': 'SA222',
         'Vt627': 'Vt627',
         '111Eb': 'Pesa 111Eb',
         'EU47': 'EU47',
-        'EN57w': 'The Kibel',
-        'EN57AKM': 'Kibel AKM',
-        'EN57AL': 'Kibel AL',
-        'EN71': 'Kibel EN71',
+        'EN57wKM': 'The Kibel',
+        'EN57AKMw1': 'Kibel AKM',
+        'EN57ALwKM': 'Kibel AL',
+        'EN71KM': 'Kibel EN71',
         'SN82': 'SN82 (dzierżawiony od SKPL)'
     }
 
