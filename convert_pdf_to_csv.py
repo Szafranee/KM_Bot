@@ -5,7 +5,6 @@ import dotenv
 from PyPDF2 import PdfReader
 import pandas as pd
 
-from sftp_actions import download_file_from_url, upload_to_sftp
 
 dotenv.load_dotenv()
 
@@ -349,6 +348,7 @@ def final_dates_formatting_and_cleanup(formatted_lines):
         if roman_number is not None and len(re.findall(r'[I|V|X]+\b', split_dates_string)) == 1:
             month = roman_months_to_arabic[roman_number.group()]
             split_dates_string = split_dates_string.replace(roman_number.group(), '')
+            split_dates_string = split_dates_string.replace(' ', '')
             # add month to every number in split_dates_string
             split_dates_string = re.sub(r'\b\d{1,2}\b', r'\g<0>.' + month, split_dates_string)
             columns[-1] = split_dates_string
@@ -392,6 +392,7 @@ def write_csv_file(formatted_lines, csv_file):
     with open(csv_file, 'w', encoding='utf-8') as file:
         file.writelines(formatted_lines)
 
+
 # convert every pdf file in the data/pdfs directory to a csv file
 def convert_pdfs_to_csvs(source_dir, target_dir):
     for file in os.listdir(source_dir):
@@ -401,7 +402,7 @@ def convert_pdfs_to_csvs(source_dir, target_dir):
             words = extract_words_from_pdf(pdf_path)
             csv_path = os.path.join(target_dir, file.replace('.pdf', '.csv'))
             save_words_to_csv(words, csv_path)
-            format_converted_csv(csv_path) # main formatting!
+            format_converted_csv(csv_path)  # main formatting!
             write_csv_file(format_converted_csv(csv_path), csv_path)
     join_csv_files('data/temp', 'KM_table_current.csv', 'data/csvs')
 
