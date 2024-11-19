@@ -1,10 +1,10 @@
 import os
 import re
+import shutil
 
 import dotenv
 from PyPDF2 import PdfReader
 import pandas as pd
-
 
 dotenv.load_dotenv()
 
@@ -393,7 +393,6 @@ def write_csv_file(formatted_lines, csv_file):
         file.writelines(formatted_lines)
 
 
-# convert every pdf file in the data/pdfs directory to a csv file
 def convert_pdfs_to_csvs(source_dir, target_dir):
     for file in os.listdir(source_dir):
         print(file)
@@ -405,6 +404,12 @@ def convert_pdfs_to_csvs(source_dir, target_dir):
             format_converted_csv(csv_path)  # main formatting!
             write_csv_file(format_converted_csv(csv_path), csv_path)
     join_csv_files('data/temp', 'KM_table_current.csv', 'data/csvs')
+    archive_temp_files()
+
+
+def archive_temp_files(source_dir='data/temp', target_dir='data/old'):
+    for file in os.listdir(source_dir):
+        shutil.move(os.path.join(source_dir, file), os.path.join(target_dir, file))
 
 
 if __name__ == '__main__':
