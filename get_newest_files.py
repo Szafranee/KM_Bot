@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, unquote
 import os
 
-from sftp_actions import sync_files_to_sftp, upload_to_sftp
+from sftp_actions import move_old_files_to_sftp
 
 dotenv.load_dotenv()
 
@@ -15,6 +15,7 @@ port = int(os.getenv('SFTP_PORT'))
 username = os.getenv('SFTP_USERNAME')
 password = os.getenv('SFTP_PASSWORD')
 pdf_remote_dir = os.getenv('SFTP_PDFS_DIR')
+old_data_remote_dir = os.getenv('SFTP_OLD_DIR')
 
 # URL of the main page with train schedules
 MAIN_URL = "https://www.mazowieckie.com.pl/pl/kategoria/rozklady-jazdy"
@@ -46,7 +47,7 @@ CURRENT_PDFS = []
 
 # Function to check if a PDF file has already been downloaded, and download it if not
 def check_and_download(pdf_url, pdf_name):
-    pdf_path = os.path.join("data", "pdfs", pdf_name)  # Adjusted path to the 'pdfs' folder
+    pdf_path = os.path.join("data", "pdf", pdf_name)  # Adjusted path to the 'pdf' folder
     if not os.path.exists(pdf_path):
         # Download the PDF file
         pdf_response = requests.get(pdf_url)
@@ -58,6 +59,8 @@ def check_and_download(pdf_url, pdf_name):
         print(f"The file {pdf_name} already exists.")
 
     CURRENT_PDFS.append(pdf_name)
+    if len(CURRENT_PDFS) == 0:
+        print("No new PDFs found.")
 
 
 def move_non_current_pdfs(current_dir, old_dir):
@@ -98,15 +101,9 @@ def download_pdfs(main_url):
                 check_and_download(pdf_url, pdf_name)
 
 
-def download_and_sync_pdfs(main_url, pdf_remote_dir, current_pdfs, server, username, password):
-    download_pdfs(main_url)
-    move_non_current_pdfs()
-    sync_files_to_sftp(server, username, password, 'data/pdfs', pdf_remote_dir, current_pdfs)
-
-
 def download_and_leave_newest_pdfs(main_url):
     download_pdfs(main_url)
-    move_non_current_pdfs('data/pdfs', 'data/old')
+    move_non_current_pdfs('data/pdf', 'data/old')
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ pdf_remote_dir = os.getenv('SFTP_PDFS_DIR')
 csv_remote_dir = os.getenv('SFTP_CSVS_DIR')
 
 # PDF_IN_PATH = download_file_from_url(pdf_remote_url + '/Zestawienie pociągów KM kursujących w dniach 12 II-9 III.pdf',
-#                                      'data/pdfs')
+#                                      'data/pdf')
 CSV_OUT_PATH = 'data/temp/KM_table_current.csv'
 
 TRAIN_MODELS = ['ER75', 'ER160', '45WEkm', 'EN76', 'SA135', 'SA222', 'Vt627', '111Eb', 'EU47', 'EN57wKM', 'EN57AKMw1',
@@ -219,6 +219,7 @@ def separate_train_counts_from_date(formatted_lines):
     list of str: The formatted list of lines with train counts separated from dates.
     """
     for i, line in enumerate(formatted_lines):
+        line = line.replace(', ', ',', 1)
         split_line = line.split(' ')
         numbers_separated = False
         for j in range(len(split_line)):
@@ -393,17 +394,17 @@ def write_csv_file(formatted_lines, csv_file):
         file.writelines(formatted_lines)
 
 
-def convert_pdfs_to_csvs(source_dir, target_dir):
+def convert_pdfs_to_csvs(source_dir='data/pdf', temp_dir='data/temp', target_dir='data/csv'):
     for file in os.listdir(source_dir):
         print(file)
         if file.endswith('.pdf'):
             pdf_path = os.path.join(source_dir, file)
             words = extract_words_from_pdf(pdf_path)
-            csv_path = os.path.join(target_dir, file.replace('.pdf', '.csv'))
+            csv_path = os.path.join(temp_dir, file.replace('.pdf', '.csv'))
             save_words_to_csv(words, csv_path)
             format_converted_csv(csv_path)  # main formatting!
             write_csv_file(format_converted_csv(csv_path), csv_path)
-    join_csv_files('data/temp', 'KM_table_current.csv', 'data/csvs')
+    join_csv_files('data/temp', 'KM_table_current.csv', 'data/csv')
     archive_temp_files()
 
 
@@ -413,4 +414,4 @@ def archive_temp_files(source_dir='data/temp', target_dir='data/old'):
 
 
 if __name__ == '__main__':
-    convert_pdfs_to_csvs('data/pdfs', 'data/temp')
+    convert_pdfs_to_csvs('data/pdf', 'data/temp')
