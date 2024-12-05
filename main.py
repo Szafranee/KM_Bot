@@ -6,14 +6,12 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from dotenv import load_dotenv
 
-from sftp_actions import download_file_from_url
-
 # Constants
 load_dotenv()
 api_key = os.getenv('TELEGRAM_API_TOKEN')
 BOT_USERNAME: Final = '@kmkobot'
 REMOTE_CSV_FILE_URL = 'https://users.pja.edu.pl/~s28102/KM_Bot/data/csvs/KM_table_current.csv'
-LOCAL_CSV_FILE_PATH = download_file_from_url(REMOTE_CSV_FILE_URL, 'data/csvs', 'KM_table_current.csv')
+LOCAL_CSV_FILE_PATH = 'data/csv/KM_table_current.csv'
 MONTH_ROMAN_NUMERALS = {
     'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6,
     'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10, 'XI': 11, 'XII': 12
@@ -49,25 +47,25 @@ TRAIN_IMAGES = {
 }
 
 
-def get_train_info(reader, train_nr):
+def get_train_info(reader, target_train_nr):
     for row in reader:
-        row_nr = row[0]
+        curr_train_nr = row[0]
         row_sliced = None
 
-        if len(row_nr) > 5:
-            if row_nr[:4] == train_nr[:4] and row_nr[6] == train_nr[4]:
-                row_sliced = row_nr[:4] + row_nr[6:]
-            elif row_nr[:5] == train_nr:
-                row_sliced = row_nr[:5]
-        elif row_nr == train_nr:
-            row_sliced = row_nr
+        if len(curr_train_nr) > 5:
+            if curr_train_nr[:4] == target_train_nr[:4] and curr_train_nr[6] == target_train_nr[4]:
+                row_sliced = curr_train_nr[:4] + curr_train_nr[6:]
+            elif curr_train_nr[:5] == target_train_nr:
+                row_sliced = curr_train_nr[:5]
+        elif curr_train_nr == target_train_nr:
+            row_sliced = curr_train_nr
 
         if row_sliced is not None:
             row[0] = row_sliced
             if is_valid_date_range(row[7]):
                 return format_train_info(row)
 
-    return {"numer_pociagu": train_nr, "typ_taboru": f"Nie znaleziono pociągu o numerze {train_nr}"}
+    return {"numer_pociagu": target_train_nr, "typ_taboru": f"Nie znaleziono pociągu o numerze {target_train_nr}"}
 
 
 def get_train_info_from_nr(train_nr: str):
