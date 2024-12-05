@@ -108,3 +108,5 @@ def download_and_leave_newest_pdfs(main_url):
 
 if __name__ == "__main__":
     download_and_leave_newest_pdfs(MAIN_URL)
+
+    
