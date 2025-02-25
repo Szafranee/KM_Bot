@@ -1,14 +1,15 @@
-import os
-import fitz  # PyMuPDF
 import csv
+import os
 import re
-
 import time
 
-#TODO:
+import pymupdf
+
+
+# TODO:
 # 1. Date convertion
 
-def extract_table_from_text(text):
+def extract_table_from_text(text: str) -> list:
     """
     Extracts table rows from the provided page text by processing each line.
     Skips lines that contain any of the specified keywords as separate words.
@@ -67,6 +68,77 @@ def extract_table_from_text(text):
         rows.append(row)
     return rows
 
+
+
+def convert_dates_from_roman(row: list) -> list:
+    """
+    Converts dates in the row from Roman numerals to Arabic numerals.
+
+    Parameters:
+        row (list): A list of strings representing a row.
+
+    Returns:
+        list: The row with dates converted to Arabic numerals.
+    """
+    date = row[-1]
+
+    roman_to_arabic = {
+        "I": "01", "II": "02", "III": "03", "IV": "04", "V": "05", "VI": "06",
+        "VII": "07", "VIII": "08", "IX": "09", "X": "10", "XI": "11", "XII": "12"
+    }
+
+    roman_number = re.search(r'[IVX]+\b', date)
+
+
+    if roman_number and '-' in date:  # date like "1-5 VI"
+        roman = roman_number.group()
+        arabic = roman_to_arabic.get(roman)
+
+        date = date.replace(roman, '').strip()
+
+        days = date.split('-')
+
+        for i, day in enumerate(days):
+            # add leading zero to day if needed
+            if len(day) == 1:
+                day = "0" + day
+            days[i] = day + "." + arabic  # add month to day
+
+        new_dates = "-".join(days)
+        row[-1] = new_dates
+    elif roman_number and ',' in date:  # date like "1,2 VI"
+        roman = roman_number.group()
+        arabic = roman_to_arabic.get(roman)
+
+        date = date.replace(roman, '').strip()
+
+        days = date.split(',')
+
+        for i, day in enumerate(days):
+            # add leading zero to day if needed
+            if len(day) == 1:
+                day = "0" + day
+            days[i] = day + "." + arabic  # add month to day
+
+        new_dates = ", ".join(days)
+        row[-1] = new_dates
+
+    elif roman_number and len(re.findall(r'[IVX]+', date)) == 1:  # date like "1 VI"
+        roman = roman_number.group()
+        arabic = roman_to_arabic.get(roman)
+        if arabic:
+            row[-1] = date.replace(roman, arabic).replace(" ", ".")
+
+        # add leading zero to day if needed
+        if len(row[-1].split(".")[0]) == 1:
+            row[-1] = "0" + row[-1]
+
+    return row
+
+
+
+
+
 def process_pdf_to_rows(pdf_path):
     """
     Processes a PDF file and returns the extracted table rows.
@@ -78,7 +150,7 @@ def process_pdf_to_rows(pdf_path):
         list: A list of table rows extracted from the PDF.
     """
     try:
-        doc = fitz.open(pdf_path)
+        doc = pymupdf.open(pdf_path)
     except Exception as e:
         print(f"Error opening PDF file {pdf_path}: {e}")
         return []
@@ -91,7 +163,8 @@ def process_pdf_to_rows(pdf_path):
 
     return all_rows
 
-def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/combined_output.csv'):
+
+def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/KM_table_current.csv'):
     """
     Converts all PDF files in the specified source directory to a single CSV file.
 
@@ -116,8 +189,9 @@ def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/c
     except Exception as e:
         print(f"Error writing to CSV {output_csv}: {e}")
 
+
 if __name__ == '__main__':
     start = time.time()
-    convert_all_pdfs_to_single_csv('data/pdf', 'data/csv/combined_output.csv')
+    convert_all_pdfs_to_single_csv('data/pdf')
     end = time.time()
     print(f"Time taken: {end - start:.2f} seconds.")
