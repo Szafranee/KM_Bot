@@ -46,14 +46,23 @@ CURRENT_PDFS = []
 
 # Function to check if a PDF file has already been downloaded, and download it if not
 def check_and_download(pdf_url, pdf_name):
-    pdf_path = os.path.join("data", "pdf", pdf_name)  # Adjusted path to the 'pdf' folder
+    # Create the directory structure if it doesn't exist
+    pdf_dir = os.path.join("data", "pdf")
+    os.makedirs(pdf_dir, exist_ok=True)
+
+    pdf_path = os.path.join(pdf_dir, pdf_name)
     if not os.path.exists(pdf_path):
-        # Download the PDF file
-        pdf_response = requests.get(pdf_url)
-        # Save the file to disk
-        with open(pdf_path, "wb") as f:
-            f.write(pdf_response.content)
-        print(f"Downloaded: {pdf_name} ({pdf_url})")
+        try:
+            # Download the PDF file
+            pdf_response = requests.get(pdf_url)
+            pdf_response.raise_for_status()  # Raise exception for bad responses
+
+            # Save the file to disk
+            with open(pdf_path, "wb") as f:
+                f.write(pdf_response.content)
+            print(f"Downloaded: {pdf_name} ({pdf_url})")
+        except requests.exceptions.RequestException as e:
+            print(f"Error downloading {pdf_name}: {e}")
     else:
         print(f"The file {pdf_name} already exists.")
 
