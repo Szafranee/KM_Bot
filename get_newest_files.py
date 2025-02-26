@@ -5,8 +5,6 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, unquote
 import os
 
-from sftp_actions import move_old_files_to_sftp
-
 dotenv.load_dotenv()
 
 server = os.getenv('SFTP_SERVER')

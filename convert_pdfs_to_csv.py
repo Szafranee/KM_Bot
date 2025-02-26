@@ -180,6 +180,11 @@ def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/K
             rows = process_pdf_to_rows(pdf_path)
             all_rows.extend(rows)
 
+    # Ensure the output directory exists
+    output_dir = os.path.dirname(output_csv)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
     try:
         with open(output_csv, "w", newline="", encoding="utf-8") as csv_file:
             writer = csv.writer(csv_file, delimiter=";")
@@ -188,7 +193,6 @@ def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/K
         print(f"All data combined and saved to {output_csv}.")
     except Exception as e:
         print(f"Error writing to CSV {output_csv}: {e}")
-
 
 if __name__ == '__main__':
     start = time.time()
