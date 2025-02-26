@@ -9,19 +9,19 @@ import pymupdf
 # TODO:
 # 1. Date convertion
 
-def extract_table_from_text(text: str) -> list:
+def extract_table_from_pdf_page(page_text: str) -> list:
     """
-    Extracts table rows from the provided page text by processing each line.
-    Skips lines that contain any of the specified keywords as separate words.
+    Extracts table rows from the provided PDF page text by processing each line.
+    Lines containing specific keywords are skipped to ensure only relevant data is captured.
 
     The keywords "odj." and "przyj." are handled with an optional period,
-    so both "odj" and "odj." (and similarly for "przyj") will be matched.
+    allowing for matches with both "odj" and "odj." (and similarly for "przyj").
 
     Parameters:
-        text (str): The plain text extracted from a PDF page.
+        page_text (str): The plain text extracted from a PDF page.
 
     Returns:
-        list: A list of rows, where each row is a list of strings.
+        list: A list of rows, where each row is a list of strings representing table data.
     """
     raw_keywords = [
         "okres", "nr poc", "relacja", "handlowa", "zestawienie", "termin",
@@ -31,7 +31,7 @@ def extract_table_from_text(text: str) -> list:
 
     rows = []
     row = []
-    lines = text.splitlines()
+    lines = page_text.splitlines()
     column_counter = 0
 
     i = 0
@@ -68,8 +68,6 @@ def extract_table_from_text(text: str) -> list:
         rows.append(row)
     return rows
 
-
-
 def convert_dates_from_roman(row: list) -> list:
     """
     Converts dates in the row from Roman numerals to Arabic numerals.
@@ -88,7 +86,6 @@ def convert_dates_from_roman(row: list) -> list:
     }
 
     roman_number = re.search(r'[IVX]+\b', date)
-
 
     if roman_number and '-' in date:  # date like "1-5 VI"
         roman = roman_number.group()
@@ -136,9 +133,6 @@ def convert_dates_from_roman(row: list) -> list:
     return row
 
 
-
-
-
 def process_pdf_to_rows(pdf_path):
     """
     Processes a PDF file and returns the extracted table rows.
@@ -158,7 +152,7 @@ def process_pdf_to_rows(pdf_path):
     all_rows = []
     for page_num in range(len(doc)):
         page = doc[page_num]
-        rows = extract_table_from_text(page.get_text("text"))
+        rows = extract_table_from_pdf_page(page.get_text("text"))
         all_rows.extend(rows)
 
     return all_rows
@@ -193,6 +187,7 @@ def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/K
         print(f"All data combined and saved to {output_csv}.")
     except Exception as e:
         print(f"Error writing to CSV {output_csv}: {e}")
+
 
 if __name__ == '__main__':
     start = time.time()
