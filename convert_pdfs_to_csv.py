@@ -24,12 +24,12 @@ def extract_table_from_pdf_page(page_text: str) -> list:
         list: A list of rows, where each row is a list of strings representing table data.
     """
     raw_keywords = [
-        "okres", "nr poc", "relacja", "handlowa", "zestawienie", "termin",
+        "okres", "nr poc", "relacja", "handlowa", "zestawienie", "termin", "kursowania",
         "z", "odj\\.?", "do", "przyj\\.?", "typ", "taboru", "ilość", "legenda"
     ]
     keywords_pattern = [re.compile(r'\b' + keyword + r'\b', re.IGNORECASE) for keyword in raw_keywords]
 
-    train_number_pattern = re.compile(r'^\d{5}(/\d)?$')  # (e.g. 12345 or 12345/6)
+    train_number_pattern = re.compile(r'^\d{5}(/\d+)?$')  # (e.g. 12345 or 12345/6)
 
     rows = []
     row = []
@@ -48,19 +48,34 @@ def extract_table_from_pdf_page(page_text: str) -> list:
             continue
 
         if column_counter < 9:
-            # if 8th column is made only from numbers or contains "/" don't append that row, start new one
-            # that's because 8th column is date and for some reason (KM moment) it is sometimes empty, making the row invalid (at least I assumed that from manually checking if these trains exist)
-            if column_counter == 7:
-                next_line = lines[i].strip() if i < len(lines) else ""
-                if not any(c.isalpha() for c in next_line) or "/" in next_line:
-                    column_counter = 0
-                    row = []
-                    continue
-
             if ("PERON" in line or "LOTNISKO" in line) and i < len(lines):
                 next_line = lines[i].strip()
                 line = line + " " + next_line
                 i += 1
+
+            if column_counter == 7:
+                next_line = lines[i].strip() if i < len(lines) else ""
+
+                # Special handling for EU47 trains to properly parse units and dates
+                if lines[i - 2].strip().startswith("EU47"):
+                    different_units_count = len(lines[i - 2].strip().split(", "))
+                    line_parts = line.split(" ")
+                    units_counts = line_parts[:different_units_count]
+                    dates_part_1 = line_parts[different_units_count:]
+                    dates_part_1 = " ".join(dates_part_1)
+
+                    if i < len(lines) and not train_number_pattern.match(next_line):
+                        dates = dates_part_1 + " " + next_line
+                        lines[i] = dates
+
+                    line = " ".join(units_counts)
+
+                # if 8th column is a train number don't append that row, start new one
+                # that's because 8th column is date and for some reason (KM moment) it is sometimes empty, making the row invalid (at least I assumed that from manually checking if these trains exist)
+                if train_number_pattern.match(next_line):
+                    column_counter = 0
+                    row = []
+                    continue
 
             if column_counter == 8:
                 next_line = lines[i].strip() if i < len(lines) else ""
@@ -82,7 +97,30 @@ def extract_table_from_pdf_page(page_text: str) -> list:
 
     if row:
         rows.append(row)
+
+    # Clean up date strings in the last element of each row
+    rows = [dates_cleanup(row) for row in rows]
+
     return rows
+
+
+def dates_cleanup(row: list) -> list:
+    """
+    Cleans up date strings in the last element of a row.
+
+    Standardizes date formatting by ensuring consistent spacing around hyphens and commas.
+
+    Args:
+        row: A list where the last element contains date information.
+
+    Returns:
+        The modified row with cleaned date formatting in the last element.
+    """
+    dates = row[-1]
+    dates = dates.replace("-", " - ").replace(",", ", ").replace("  ", " ").strip()
+
+    row[-1] = dates
+    return row
 
 
 def convert_dates_from_roman(row: list) -> list:
