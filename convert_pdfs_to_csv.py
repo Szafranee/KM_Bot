@@ -133,7 +133,7 @@ def convert_dates_from_roman(row: list) -> list:
     return row
 
 
-def process_pdf_to_rows(pdf_path):
+def process_pdf_to_rows(pdf_path: str) -> list:
     """
     Processes a PDF file and returns the extracted table rows.
 
@@ -158,7 +158,7 @@ def process_pdf_to_rows(pdf_path):
     return all_rows
 
 
-def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/KM_table_current.csv'):
+def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/KM_table_current.csv') -> None:
     """
     Converts all PDF files in the specified source directory to a single CSV file.
 
