@@ -25,14 +25,16 @@ def extract_table_from_pdf_page(page_text: str) -> list:
     """
     raw_keywords = [
         "okres", "nr poc", "relacja", "handlowa", "zestawienie", "termin",
-        "kursowania", "z", "odj\\.?", "do", "przyj\\.?", "typ", "taboru", "ilość"
+        "z", "odj\\.?", "do", "przyj\\.?", "typ", "taboru", "ilość", "legenda"
     ]
-    patterns = [re.compile(r'\b' + keyword + r'\b', re.IGNORECASE) for keyword in raw_keywords]
+    keywords_pattern = [re.compile(r'\b' + keyword + r'\b', re.IGNORECASE) for keyword in raw_keywords]
+
+    train_number_pattern = re.compile(r'^\d{5}(/\d)?$')  # (e.g. 12345 or 12345/6)
 
     rows = []
     row = []
     lines = page_text.splitlines()
-    column_counter = 0
+    column_counter = 1
 
     i = 0
     while i < len(lines):
@@ -42,31 +44,46 @@ def extract_table_from_pdf_page(page_text: str) -> list:
         if not line:
             continue
 
-        if any(pattern.search(line) for pattern in patterns):
+        if any(pattern.search(line) for pattern in keywords_pattern):
             continue
 
-        if column_counter < 8:
-            # if 8th column is made only from numbers or contains "/" don't append that row:
-            if column_counter == 6:
+        if column_counter < 9:
+            # if 8th column is made only from numbers or contains "/" don't append that row, start new one
+            # that's because 8th column is date and for some reason (KM moment) it is sometimes empty, making the row invalid (at least I assumed that from manually checking if these trains exist)
+            if column_counter == 7:
                 next_line = lines[i].strip() if i < len(lines) else ""
                 if not any(c.isalpha() for c in next_line) or "/" in next_line:
                     column_counter = 0
                     row = []
                     continue
+
             if ("PERON" in line or "LOTNISKO" in line) and i < len(lines):
                 next_line = lines[i].strip()
                 line = line + " " + next_line
                 i += 1
+
+            if column_counter == 8:
+                next_line = lines[i].strip() if i < len(lines) else ""
+                # We need to keep checking if next line is not a train number (new row) or phrase to skip.
+                # If it's neither of those, we need to append it to the current line because it's a part of the date.
+                # If it's a train number or phrase to skip, we need to start a new row, because we reached the end of the current one.
+
+                while (not train_number_pattern.match(next_line) and not any(
+                        pattern.search(next_line) for pattern in keywords_pattern)) and i < len(lines):
+                    line = line + " " + next_line
+                    i += 1
+                    next_line = lines[i].strip() if i < len(lines) else ""
             row.append(line)
             column_counter += 1
         else:
             rows.append(row)
             row = [line]
-            column_counter = 1
+            column_counter = 2
 
     if row:
         rows.append(row)
     return rows
+
 
 def convert_dates_from_roman(row: list) -> list:
     """
