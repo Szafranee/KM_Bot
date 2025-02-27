@@ -99,14 +99,14 @@ def extract_table_from_pdf_page(page_text: str) -> list:
         rows.append(row)
 
     # Clean up date strings in the last element of each row
-    rows = [dates_cleanup(row) for row in rows]
+    rows = [format_date_strings(row) for row in rows]
 
     return rows
 
 
-def dates_cleanup(row: list) -> list:
+def format_date_strings(row: list) -> list:
     """
-    Cleans up date strings in the last element of a row.
+    Formats date strings in the last element of a row.
 
     Standardizes date formatting by ensuring consistent spacing around hyphens and commas.
 
@@ -188,7 +188,7 @@ def convert_dates_from_roman(row: list) -> list:
     return row
 
 
-def process_pdf_to_rows(pdf_path: str) -> list:
+def extract_rows_from_pdf(pdf_path: str) -> list:
     """
     Processes a PDF file and returns the extracted table rows.
 
@@ -213,22 +213,35 @@ def process_pdf_to_rows(pdf_path: str) -> list:
     return all_rows
 
 
-def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/KM_table_current.csv') -> None:
+def extract_rows_from_all_pdfs(source_dir='data/pdf') -> list:
     """
-    Converts all PDF files in the specified source directory to a single CSV file.
+    Extracts rows from all PDF files in the specified source directory.
 
     Parameters:
         source_dir (str): The directory containing PDF files.
-        output_csv (str): The path where the combined CSV file will be saved.
+
+    Returns:
+        list: A list of all rows extracted from all PDF files in the source directory.
     """
     all_rows = []
 
     for file in os.listdir(source_dir):
         if file.endswith('.pdf'):
             pdf_path = os.path.join(source_dir, file)
-            rows = process_pdf_to_rows(pdf_path)
+            rows = extract_rows_from_pdf(pdf_path)
             all_rows.extend(rows)
 
+    return all_rows
+
+
+def write_rows_to_csv(rows, output_csv='data/csv/KM_table_current.csv') -> None:
+    """
+    Writes the provided rows to a CSV file.
+
+    Parameters:
+        rows (list): The list of rows to write to the CSV file.
+        output_csv (str): The path where the CSV file will be saved.
+    """
     # Ensure the output directory exists
     output_dir = os.path.dirname(output_csv)
     if not os.path.exists(output_dir):
@@ -237,11 +250,25 @@ def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/K
     try:
         with open(output_csv, "w", newline="", encoding="utf-8") as csv_file:
             writer = csv.writer(csv_file, delimiter=";")
-            for row in all_rows:
+            for row in rows:
                 writer.writerow(row)
         print(f"All data combined and saved to {output_csv}.")
     except Exception as e:
         print(f"Error writing to CSV {output_csv}: {e}")
+
+
+def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/KM_table_current.csv') -> None:
+    """
+    Converts all PDF files in the specified source directory to a single CSV file.
+
+    This function combines the functionality of extract_rows_from_all_pdfs and write_rows_to_csv.
+
+    Parameters:
+        source_dir (str): The directory containing PDF files.
+        output_csv (str): The path where the combined CSV file will be saved.
+    """
+    all_rows = extract_rows_from_all_pdfs(source_dir)
+    write_rows_to_csv(all_rows, output_csv)
 
 
 if __name__ == '__main__':
