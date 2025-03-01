@@ -98,9 +98,6 @@ def extract_table_from_pdf_page(page_text: str) -> list:
     if row:
         rows.append(row)
 
-    # Clean up date strings in the last element of each row
-    rows = [format_date_strings(row) for row in rows]
-
     return rows
 
 
@@ -188,6 +185,35 @@ def convert_dates_from_roman(row: list) -> list:
     return row
 
 
+def extract_date_annotations(row: list) -> list:
+    """
+    Extracts special annotations from date strings and moves them to a separate column.
+
+    Handles annotations like (C), (+), (1-6) that indicate special operating conditions
+    such as weekends only or Monday to Saturday operation.
+
+    Parameters:
+        row (list): A list of strings representing a row, with the last element containing date information.
+
+    Returns:
+        list: The modified row with date annotations moved to a new column.
+    """
+    # Function body will be implemented later
+
+    dates = row[-1]
+
+    # find everything after " (" to the end of the string
+    bracket_position = dates.find("(")
+    if bracket_position != -1:
+        annotation = dates[bracket_position:]
+        dates = dates[:bracket_position].strip()
+        row.append(annotation)
+        row[-2] = dates
+
+    return row
+
+
+
 def extract_rows_from_pdf(pdf_path: str) -> list:
     """
     Processes a PDF file and returns the extracted table rows.
@@ -262,13 +288,25 @@ def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/K
     Converts all PDF files in the specified source directory to a single CSV file.
 
     This function combines the functionality of extract_rows_from_all_pdfs and write_rows_to_csv.
+    The process includes extracting data from PDFs, formatting dates, converting Roman numerals,
+    extracting date annotations, and writing the final data to a CSV file.
 
     Parameters:
         source_dir (str): The directory containing PDF files.
         output_csv (str): The path where the combined CSV file will be saved.
     """
     all_rows = extract_rows_from_all_pdfs(source_dir)
-    write_rows_to_csv(all_rows, output_csv)
+
+    # Process dates and extract annotations
+    processed_rows = []
+    for row in all_rows:
+        if row:  # Skip empty rows
+            row = format_date_strings(row)
+            row = extract_date_annotations(row)
+            processed_rows.append(row)
+
+    write_rows_to_csv(processed_rows, output_csv)
+
 
 
 if __name__ == '__main__':
