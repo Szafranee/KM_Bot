@@ -130,7 +130,7 @@ def convert_dates_from_roman(row: list) -> list:
     Returns:
         list: The row with dates converted to Arabic numerals.
     """
-    date = row[-1]
+    date = row[-2]
 
     roman_to_arabic = {
         "I": "01", "II": "02", "III": "03", "IV": "04", "V": "05", "VI": "06",
@@ -139,50 +139,77 @@ def convert_dates_from_roman(row: list) -> list:
 
     roman_number = re.search(r'[IVX]+\b', date)
 
-    if roman_number and '-' in date:  # date like "1-5 VI"
-        roman = roman_number.group()
-        arabic = roman_to_arabic.get(roman)
+    if not roman_number:
+        return row  # Return the row unchanged if no Roman numerals are found
 
-        date = date.replace(roman, '').strip()
+    roman_number_str = roman_number.group()
 
-        days = date.split('-')
+    if roman_number_str in roman_to_arabic:
+        if roman_number and "-" in date and len(re.findall(r'[IVX]+', date)) == 2:  # date like "1 VI - 5 VII"
+            star_date, end_date = date.split(" - ")
 
-        for i, day in enumerate(days):
+            start_roman = re.search(r'[IVX]+', star_date).group()
+            end_roman = re.search(r'[IVX]+', end_date).group()
+
+            start_arabic = roman_to_arabic.get(start_roman)
+            end_arabic = roman_to_arabic.get(end_roman)
+
+            # remove roman numerals from dates
+            star_date = star_date.replace(start_roman, "").strip()
+            end_date = end_date.replace(end_roman, "").strip()
+
             # add leading zero to day if needed
-            if len(day) == 1:
-                day = "0" + day
-            days[i] = day + "." + arabic  # add month to day
+            if len(star_date.split(" ")[0]) == 1:
+                star_date = "0" + star_date.split(" ")[0]
+            if len(end_date.split(" ")[0]) == 1:
+                end_date = "0" + end_date.split(" ")[0]
 
-        new_dates = "-".join(days)
-        row[-1] = new_dates
-    elif roman_number and ',' in date:  # date like "1,2 VI"
-        roman = roman_number.group()
-        arabic = roman_to_arabic.get(roman)
+            row[-2] = star_date + "." + start_arabic + " - " + end_date + "." + end_arabic
 
-        date = date.replace(roman, '').strip()
+        elif roman_number and '-' in date:  # date like "1 - 5 VI"
+            roman = roman_number.group()
+            arabic = roman_to_arabic.get(roman)
 
-        days = date.split(',')
+            date = date.replace(roman, '').strip()
 
-        for i, day in enumerate(days):
+            days = date.split(' - ')
+
+            for i, day in enumerate(days):
+                # add leading zero to day if needed
+                if len(day) == 1:
+                    day = "0" + day
+                days[i] = day + "." + arabic  # add month to day
+
+            new_dates = " - ".join(days)
+            row[-2] = new_dates
+        elif roman_number and ',' in date:  # date like "1, 2 VI"
+            roman = roman_number.group()
+            arabic = roman_to_arabic.get(roman)
+
+            date = date.replace(roman, '').strip()
+
+            days = date.split(', ')
+
+            for i, day in enumerate(days):
+                # add leading zero to day if needed
+                if len(day) == 1:
+                    day = "0" + day
+                days[i] = day + "." + arabic  # add month to day
+
+            new_dates = ", ".join(days)
+            row[-2] = new_dates
+        elif roman_number and len(re.findall(r'[IVX]+', date)) == 1:  # date like "1 VI"
+            roman = roman_number.group()
+            arabic = roman_to_arabic.get(roman)
+            if arabic:
+                row[-2] = date.replace(roman, arabic).replace(" ", ".")
+
             # add leading zero to day if needed
-            if len(day) == 1:
-                day = "0" + day
-            days[i] = day + "." + arabic  # add month to day
-
-        new_dates = ", ".join(days)
-        row[-1] = new_dates
-
-    elif roman_number and len(re.findall(r'[IVX]+', date)) == 1:  # date like "1 VI"
-        roman = roman_number.group()
-        arabic = roman_to_arabic.get(roman)
-        if arabic:
-            row[-1] = date.replace(roman, arabic).replace(" ", ".")
-
-        # add leading zero to day if needed
-        if len(row[-1].split(".")[0]) == 1:
-            row[-1] = "0" + row[-1]
-
-    return row
+            if len(row[-2].split(".")[0]) == 1:
+                row[-2] = "0" + row[-2]
+        return row
+    else:
+        return row
 
 
 def extract_date_annotations(row: list) -> list:
@@ -209,6 +236,8 @@ def extract_date_annotations(row: list) -> list:
         dates = dates[:bracket_position].strip()
         row.append(annotation)
         row[-2] = dates
+    else:
+        row.append("")
 
     return row
 
@@ -303,6 +332,7 @@ def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/K
         if row:  # Skip empty rows
             row = format_date_strings(row)
             row = extract_date_annotations(row)
+            # row = convert_dates_from_roman(row)
             processed_rows.append(row)
 
     write_rows_to_csv(processed_rows, output_csv)
