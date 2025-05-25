@@ -5,11 +5,11 @@ import time
 
 import pymupdf
 
+import dates_extraction
+import gemini_date_converion
 
-# TODO:
-# 1. Date convertion
 
-def extract_table_from_pdf_page(page_text: str) -> list:
+def extract_table_from_pdf_page(page_text: str) -> list[list[str]]:
     """
     Extracts table rows from the provided PDF page text by processing each line.
     Lines containing specific keywords are skipped to ensure only relevant data is captured.
@@ -29,7 +29,7 @@ def extract_table_from_pdf_page(page_text: str) -> list:
     ]
     keywords_pattern = [re.compile(r'\b' + keyword + r'\b', re.IGNORECASE) for keyword in raw_keywords]
 
-    train_number_pattern = re.compile(r'^\d{5}(/\d+)?$')  # (e.g. 12345 or 12345/6)
+    train_number_pattern = re.compile(r'^\d{5}(\/\d)?$')  # (e.g. 12345 or 12345/6)
 
     rows = []
     row = []
@@ -70,16 +70,16 @@ def extract_table_from_pdf_page(page_text: str) -> list:
 
                     line = " ".join(units_counts)
 
-                # if 8th column is a train number don't append that row, start new one
-                # that's because 8th column is date and for some reason (KM moment) it is sometimes empty, making the row invalid (at least I assumed that from manually checking if these trains exist)
-                if train_number_pattern.match(next_line):
-                    column_counter = 0
+                # if the 8th column is a train number, OR is empty, don't append that row, start a new one
+                # that's because the 8th column is a date, and for some reason (KM moment) it is sometimes empty, making the row invalid (at least I assumed that from manually checking if these trains exist)
+                if train_number_pattern.match(next_line) or not next_line:
+                    column_counter = 1
                     row = []
                     continue
 
             if column_counter == 8:
                 next_line = lines[i].strip() if i < len(lines) else ""
-                # We need to keep checking if next line is not a train number (new row) or phrase to skip.
+                # We need to keep checking if the next line is not a train number (new row) or phrase to skip.
                 # If it's neither of those, we need to append it to the current line because it's a part of the date.
                 # If it's a train number or phrase to skip, we need to start a new row, because we reached the end of the current one.
 
@@ -101,11 +101,11 @@ def extract_table_from_pdf_page(page_text: str) -> list:
     return rows
 
 
-def format_date_strings(row: list) -> list:
+def format_date_strings(row: list[str]) -> list:
     """
     Formats date strings in the last element of a row.
 
-    Standardizes date formatting by ensuring consistent spacing around hyphens and commas.
+    Standardises date formatting by ensuring consistent spacing around hyphens and commas.
 
     Args:
         row: A list where the last element contains date information.
@@ -120,99 +120,32 @@ def format_date_strings(row: list) -> list:
     return row
 
 
-def convert_dates_from_roman(row: list) -> list:
+def extract_rows_from_pdf(pdf_path: str) -> list:
     """
-    Converts dates in the row from Roman numerals to Arabic numerals.
+    Processes a PDF file and returns the extracted table rows.
 
     Parameters:
-        row (list): A list of strings representing a row.
+        pdf_path (str): The path to the PDF file.
 
     Returns:
-        list: The row with dates converted to Arabic numerals.
+        list: A list of table rows extracted from the PDF.
     """
-    date = row[-2]
+    try:
+        doc = pymupdf.open(pdf_path)
+    except Exception as e:
+        print(f"Error opening PDF file {pdf_path}: {e}")
+        return []
 
-    roman_to_arabic = {
-        "I": "01", "II": "02", "III": "03", "IV": "04", "V": "05", "VI": "06",
-        "VII": "07", "VIII": "08", "IX": "09", "X": "10", "XI": "11", "XII": "12"
-    }
+    all_rows = []
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        rows = extract_table_from_pdf_page(page.get_text("text"))
+        all_rows.extend(rows)
 
-    roman_number = re.search(r'[IVX]+\b', date)
-
-    if not roman_number:
-        return row  # Return the row unchanged if no Roman numerals are found
-
-    roman_number_str = roman_number.group()
-
-    if roman_number_str in roman_to_arabic:
-        if roman_number and "-" in date and len(re.findall(r'[IVX]+', date)) == 2:  # date like "1 VI - 5 VII"
-            star_date, end_date = date.split(" - ")
-
-            start_roman = re.search(r'[IVX]+', star_date).group()
-            end_roman = re.search(r'[IVX]+', end_date).group()
-
-            start_arabic = roman_to_arabic.get(start_roman)
-            end_arabic = roman_to_arabic.get(end_roman)
-
-            # remove roman numerals from dates
-            star_date = star_date.replace(start_roman, "").strip()
-            end_date = end_date.replace(end_roman, "").strip()
-
-            # add leading zero to day if needed
-            if len(star_date.split(" ")[0]) == 1:
-                star_date = "0" + star_date.split(" ")[0]
-            if len(end_date.split(" ")[0]) == 1:
-                end_date = "0" + end_date.split(" ")[0]
-
-            row[-2] = star_date + "." + start_arabic + " - " + end_date + "." + end_arabic
-
-        elif roman_number and '-' in date:  # date like "1 - 5 VI"
-            roman = roman_number.group()
-            arabic = roman_to_arabic.get(roman)
-
-            date = date.replace(roman, '').strip()
-
-            days = date.split(' - ')
-
-            for i, day in enumerate(days):
-                # add leading zero to day if needed
-                if len(day) == 1:
-                    day = "0" + day
-                days[i] = day + "." + arabic  # add month to day
-
-            new_dates = " - ".join(days)
-            row[-2] = new_dates
-        elif roman_number and ',' in date:  # date like "1, 2 VI"
-            roman = roman_number.group()
-            arabic = roman_to_arabic.get(roman)
-
-            date = date.replace(roman, '').strip()
-
-            days = date.split(', ')
-
-            for i, day in enumerate(days):
-                # add leading zero to day if needed
-                if len(day) == 1:
-                    day = "0" + day
-                days[i] = day + "." + arabic  # add month to day
-
-            new_dates = ", ".join(days)
-            row[-2] = new_dates
-        elif roman_number and len(re.findall(r'[IVX]+', date)) == 1:  # date like "1 VI"
-            roman = roman_number.group()
-            arabic = roman_to_arabic.get(roman)
-            if arabic:
-                row[-2] = date.replace(roman, arabic).replace(" ", ".")
-
-            # add leading zero to day if needed
-            if len(row[-2].split(".")[0]) == 1:
-                row[-2] = "0" + row[-2]
-        return row
-    else:
-        return row
+    return all_rows
 
 
-def extract_date_annotations(row: list) -> list:
+def extract_date_annotations(row: list[str]) -> list:
     """
     Extracts special annotations from date strings and moves them to a separate column.
 
@@ -242,33 +175,7 @@ def extract_date_annotations(row: list) -> list:
     return row
 
 
-
-def extract_rows_from_pdf(pdf_path: str) -> list:
-    """
-    Processes a PDF file and returns the extracted table rows.
-
-    Parameters:
-        pdf_path (str): The path to the PDF file.
-
-    Returns:
-        list: A list of table rows extracted from the PDF.
-    """
-    try:
-        doc = pymupdf.open(pdf_path)
-    except Exception as e:
-        print(f"Error opening PDF file {pdf_path}: {e}")
-        return []
-
-    all_rows = []
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        rows = extract_table_from_pdf_page(page.get_text("text"))
-        all_rows.extend(rows)
-
-    return all_rows
-
-
-def extract_rows_from_all_pdfs(source_dir='data/pdf') -> list:
+def extract_rows_from_all_pdfs(source_dir='data/pdf') -> list[list[str]]:
     """
     Extracts rows from all PDF files in the specified source directory.
 
@@ -312,11 +219,51 @@ def write_rows_to_csv(rows, output_csv='data/csv/KM_table_current.csv') -> None:
         print(f"Error writing to CSV {output_csv}: {e}")
 
 
+def convert_dates(rows: list[list[str]]) -> list[list[str]]:
+    """
+    Converts dates in the rows of a dataset to a standardised format.
+
+    This function processes a list of rows, extracts unique dates, converts them to a
+    different format using an external date conversion module, and replaces the original
+    dates in the specified column with their converted counterparts. If a date does not
+    have a corresponding conversion in the map, a warning is printed.
+
+    Args:
+        rows (list[list[str]]): The dataset represented as a list of rows, where each
+            row is a list of strings. The date to be converted is expected to be
+            the second-to-last element in each row.
+
+    Returns:
+        list[list[str]]: The dataset with dates replaced by their converted
+        counterparts in the second-to-last column.
+    """
+
+    # Extract unique dates from the rows
+    unique_dates = dates_extraction.extract_unique_dates_from_rows(rows)
+
+    # Convert the unique dates using the Gemini date conversion module
+    date_converter = gemini_date_converion.DateConverter()
+    converted_dates = date_converter.convert_dates(dates=unique_dates)
+
+    date_map = {date: converted for date, converted in zip(unique_dates, converted_dates)}
+
+    for row in rows:
+        if row and len(row) > 2:
+            original_date = row[-2]
+            if original_date in date_map:
+                row[-2] = date_map[original_date]
+            else:
+                # print(f"Warning: Date '{original_date}' not found in conversion map.")
+                continue
+
+    return rows
+
+
 def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/KM_table_current.csv') -> None:
     """
     Converts all PDF files in the specified source directory to a single CSV file.
 
-    This function combines the functionality of extract_rows_from_all_pdfs and write_rows_to_csv.
+    This function combines the functionality of extract_rows_from_all_pdfs and write_rows_to_csv.   
     The process includes extracting data from PDFs, formatting dates, converting Roman numerals,
     extracting date annotations, and writing the final data to a CSV file.
 
@@ -332,8 +279,10 @@ def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/K
         if row:  # Skip empty rows
             row = format_date_strings(row)
             row = extract_date_annotations(row)
-            # row = convert_dates_from_roman(row)
             processed_rows.append(row)
+
+    # Convert dates in the processed rows
+    # processed_rows = convert_dates(processed_rows)
 
     write_rows_to_csv(processed_rows, output_csv)
 
