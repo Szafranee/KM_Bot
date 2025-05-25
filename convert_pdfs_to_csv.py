@@ -9,7 +9,81 @@ import dates_extraction
 import gemini_date_converion
 
 
-def extract_table_from_pdf_page(page_text: str) -> list[list[str]]:
+def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/KM_table_current.csv') -> None:
+    """
+    Converts all PDF files in the specified source directory to a single CSV file.
+
+    This function combines the functionality of extract_rows_from_all_pdfs and write_rows_to_csv.
+    The process includes extracting data from PDFs, formatting dates, converting Roman numerals,
+    extracting date annotations, and writing the final data to a CSV file.
+
+    Parameters:
+        source_dir (str): The directory containing PDF files.
+        output_csv (str): The path where the combined CSV file will be saved.
+    """
+    all_rows = extract_rows_from_all_pdfs(source_dir)
+
+    # Process dates and extract annotations
+    processed_rows = []
+    for row in all_rows:
+        if row:  # Skip empty rows
+            row = normalize_date_string_whitespace(row)
+            row = separate_date_annotations_to_new_column(row)
+            processed_rows.append(row)
+
+    # Convert dates in the processed rows
+    # processed_rows = convert_dates(processed_rows)
+
+    write_rows_to_csv(processed_rows, output_csv)
+
+
+def extract_rows_from_all_pdfs(source_dir='data/pdf') -> list[list[str]]:
+    """
+    Extracts rows from all PDF files in the specified source directory.
+
+    Parameters:
+        source_dir (str): The directory containing PDF files.
+
+    Returns:
+        list: A list of all rows extracted from all PDF files in the source directory.
+    """
+    all_rows = []
+
+    for file in os.listdir(source_dir):
+        if file.endswith('.pdf'):
+            pdf_path = os.path.join(source_dir, file)
+            rows = extract_rows_from_pdf(pdf_path)
+            all_rows.extend(rows)
+
+    return all_rows
+
+
+def extract_rows_from_pdf(pdf_path: str) -> list:
+    """
+    Processes a PDF file and returns the extracted table rows.
+
+    Parameters:
+        pdf_path (str): The path to the PDF file.
+
+    Returns:
+        list: A list of table rows extracted from the PDF.
+    """
+    try:
+        doc = pymupdf.open(pdf_path)
+    except Exception as e:
+        print(f"Error opening PDF file {pdf_path}: {e}")
+        return []
+
+    all_rows = []
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        rows = parse_table_from_page_text(page.get_text("text"))
+        all_rows.extend(rows)
+
+    return all_rows
+
+
+def parse_table_from_page_text(page_text: str) -> list[list[str]]:
     """
     Extracts table rows from the provided PDF page text by processing each line.
     Lines containing specific keywords are skipped to ensure only relevant data is captured.
@@ -29,7 +103,7 @@ def extract_table_from_pdf_page(page_text: str) -> list[list[str]]:
     ]
     keywords_pattern = [re.compile(r'\b' + keyword + r'\b', re.IGNORECASE) for keyword in raw_keywords]
 
-    train_number_pattern = re.compile(r'^\d{5}(\/\d)?$')  # (e.g. 12345 or 12345/6)
+    train_number_pattern = re.compile(r'^\d{5}(/\d)?$')  # (e.g. 12345 or 12345/6)
 
     rows = []
     row = []
@@ -101,7 +175,7 @@ def extract_table_from_pdf_page(page_text: str) -> list[list[str]]:
     return rows
 
 
-def format_date_strings(row: list[str]) -> list:
+def normalize_date_string_whitespace(row: list[str]) -> list:
     """
     Formats date strings in the last element of a row.
 
@@ -120,32 +194,7 @@ def format_date_strings(row: list[str]) -> list:
     return row
 
 
-def extract_rows_from_pdf(pdf_path: str) -> list:
-    """
-    Processes a PDF file and returns the extracted table rows.
-
-    Parameters:
-        pdf_path (str): The path to the PDF file.
-
-    Returns:
-        list: A list of table rows extracted from the PDF.
-    """
-    try:
-        doc = pymupdf.open(pdf_path)
-    except Exception as e:
-        print(f"Error opening PDF file {pdf_path}: {e}")
-        return []
-
-    all_rows = []
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        rows = extract_table_from_pdf_page(page.get_text("text"))
-        all_rows.extend(rows)
-
-    return all_rows
-
-
-def extract_date_annotations(row: list[str]) -> list:
+def separate_date_annotations_to_new_column(row: list[str]) -> list:
     """
     Extracts special annotations from date strings and moves them to a separate column.
 
@@ -173,50 +222,6 @@ def extract_date_annotations(row: list[str]) -> list:
         row.append("")
 
     return row
-
-
-def extract_rows_from_all_pdfs(source_dir='data/pdf') -> list[list[str]]:
-    """
-    Extracts rows from all PDF files in the specified source directory.
-
-    Parameters:
-        source_dir (str): The directory containing PDF files.
-
-    Returns:
-        list: A list of all rows extracted from all PDF files in the source directory.
-    """
-    all_rows = []
-
-    for file in os.listdir(source_dir):
-        if file.endswith('.pdf'):
-            pdf_path = os.path.join(source_dir, file)
-            rows = extract_rows_from_pdf(pdf_path)
-            all_rows.extend(rows)
-
-    return all_rows
-
-
-def write_rows_to_csv(rows, output_csv='data/csv/KM_table_current.csv') -> None:
-    """
-    Writes the provided rows to a CSV file.
-
-    Parameters:
-        rows (list): The list of rows to write to the CSV file.
-        output_csv (str): The path where the CSV file will be saved.
-    """
-    # Ensure the output directory exists
-    output_dir = os.path.dirname(output_csv)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    try:
-        with open(output_csv, "w", newline="", encoding="utf-8") as csv_file:
-            writer = csv.writer(csv_file, delimiter=";")
-            for row in rows:
-                writer.writerow(row)
-        print(f"All data combined and saved to {output_csv}.")
-    except Exception as e:
-        print(f"Error writing to CSV {output_csv}: {e}")
 
 
 def convert_dates(rows: list[list[str]]) -> list[list[str]]:
@@ -259,33 +264,27 @@ def convert_dates(rows: list[list[str]]) -> list[list[str]]:
     return rows
 
 
-def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/KM_table_current.csv') -> None:
+def write_rows_to_csv(rows, output_csv='data/csv/KM_table_current.csv') -> None:
     """
-    Converts all PDF files in the specified source directory to a single CSV file.
-
-    This function combines the functionality of extract_rows_from_all_pdfs and write_rows_to_csv.   
-    The process includes extracting data from PDFs, formatting dates, converting Roman numerals,
-    extracting date annotations, and writing the final data to a CSV file.
+    Writes the provided rows to a CSV file.
 
     Parameters:
-        source_dir (str): The directory containing PDF files.
-        output_csv (str): The path where the combined CSV file will be saved.
+        rows (list): The list of rows to write to the CSV file.
+        output_csv (str): The path where the CSV file will be saved.
     """
-    all_rows = extract_rows_from_all_pdfs(source_dir)
+    # Ensure the output directory exists
+    output_dir = os.path.dirname(output_csv)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-    # Process dates and extract annotations
-    processed_rows = []
-    for row in all_rows:
-        if row:  # Skip empty rows
-            row = format_date_strings(row)
-            row = extract_date_annotations(row)
-            processed_rows.append(row)
-
-    # Convert dates in the processed rows
-    # processed_rows = convert_dates(processed_rows)
-
-    write_rows_to_csv(processed_rows, output_csv)
-
+    try:
+        with open(output_csv, "w", newline="", encoding="utf-8") as csv_file:
+            writer = csv.writer(csv_file, delimiter=";")
+            for row in rows:
+                writer.writerow(row)
+        print(f"All data combined and saved to {output_csv}.")
+    except Exception as e:
+        print(f"Error writing to CSV {output_csv}: {e}")
 
 
 if __name__ == '__main__':
