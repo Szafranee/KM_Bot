@@ -8,7 +8,7 @@ import dates_extraction
 
 
 class DateConverter:
-    def __init__(self, api_key=None, model="gemini-2.0-flash-lite"):
+    def __init__(self, api_key=None, model="gemini-2.0-flash"):
         load_dotenv()
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.model = model
@@ -22,7 +22,6 @@ class DateConverter:
     def __generate(self, dates):
         load_dotenv()
 
-        model = "gemini-2.0-flash-lite"
         contents = [
             types.Content(
                 role="user",
@@ -44,17 +43,17 @@ class DateConverter:
                     ## Input Format Rules
                     
                     The input may contain dates in the following formats:
-                    - Single dates with Roman numerals for months: \\\"1 VI\\\" (June 1)
-                    - Date ranges with Roman numerals: \\\"1 VI - 5 VII\\\" (June 1 - July 5)
-                    - Multiple dates with the same Roman numeral month: \\\"1, 2 VI\\\" (June 1, June 2)
-                    - Date ranges within the same month: \\\"1 - 5 VI\\\" (June 1 - June 5)
+                    - Single dates with Roman numerals for months: \"1 VI\" (June 1)
+                    - Date ranges with Roman numerals: \"1 VI - 5 VII\" (June 1 - July 5)
+                    - Multiple dates with the same Roman numeral month: \"1, 2 VI\" (June 1, June 2)
+                    - Date ranges within the same month: \"1 - 5 VI\" (June 1 - June 5)
                     
                     ## Output Format Requirements
                     
                     Convert all dates to the following format:
-                    - Single dates: \\\"DD.MM\\\" (e.g., \\\"01.06\\\")
-                    - Date ranges: \\\"DD.MM - DD.MM\\\" (e.g., \\\"01.06 - 05.07\\\")
-                    - Multiple dates: \\\"DD.MM, DD.MM\\\" (e.g., \\\"01.06, 02.06\\\")
+                    - Single dates: \"DD.MM\" (e.g., \"01.06\")
+                    - Date ranges: \"DD.MM - DD.MM\" (e.g., \"01.06 - 05.07\")
+                    - Multiple dates: \"DD.MM, DD.MM\" (e.g., \"01.06, 02.06\")
                     
                     
                     ## Roman to Arabic Month Conversion
@@ -80,17 +79,17 @@ class DateConverter:
                     ## Examples
                     
                     Input:
-                    [ \\\"1 VI\\\", \\\"1 VI - 5 VII\\\", \\\"1, 2 VI\\\", \\\"1 - 5 VI\\\", \\\"15 VIII\\\", \\\"1 I - 31 XII\\\", \\\"1, 15, 30 IX\\\", \\\"31 V - 14 VI\\\" ]
+                    [ \"1 VI\", \"1 VI - 5 VII\", \"1, 2 VI\", \"1 - 5 VI\", \"15 VIII\", \"1 I - 31 XII\", \"1, 15, 30 IX\", \"31 V - 14 VI\" ]
                     
                     Output:
-                    [ \\\"01.06\\\", \\\"01.06 - 05.07\\\", \\\"01.06, 02.06\\\", \\\"01.06 - 05.06\\\", \\\"15.08\\\", \\\"01.01 - 31.12\\\", \\\"01.09, 15.09, 30.09\\\", \\\"31.05 - 14.06\\\" ]"""),
+                    [ \"01.06\", \"01.06 - 05.07\", \"01.06, 02.06\", \"01.06 - 05.06\", \"15.08\", \"01.01 - 31.12\", \"01.09, 15.09, 30.09\", \"31.05 - 14.06\" ]"""),
             ],
         )
 
         output = ''
 
         for chunk in self.client.models.generate_content_stream(
-                model=model,
+                model=self.model,
                 contents=contents,
                 config=generate_content_config,
         ):
@@ -116,11 +115,12 @@ class DateConverter:
                 return []
 
             # Split the output into a list of dates
+            raw_dates = raw_dates.strip().strip('`')
             raw_dates = raw_dates.strip().strip('[]')
 
             converted_dates = []
 
-            for date in raw_dates.split(', '):
+            for date in raw_dates.split('\', '):
                 date = date.strip().strip('\'')
                 if date:
                     converted_dates.append(date)
@@ -134,4 +134,5 @@ class DateConverter:
 if __name__ == "__main__":
     converter = DateConverter()
     converted_dates = converter.get_converted_dates()
-    print(converted_dates)
+    for date in converted_dates:
+        print(date)
