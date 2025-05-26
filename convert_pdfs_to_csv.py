@@ -6,7 +6,7 @@ import time
 import pymupdf
 
 import dates_extraction
-import gemini_date_converion
+import gemini_date_conversion
 
 
 def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/KM_table_current.csv') -> None:
@@ -32,7 +32,7 @@ def convert_all_pdfs_to_single_csv(source_dir='data/pdf', output_csv='data/csv/K
             processed_rows.append(row)
 
     # Convert dates in the processed rows
-    # processed_rows = convert_dates(processed_rows)
+    processed_rows = convert_dates(processed_rows)
 
     write_rows_to_csv(processed_rows, output_csv)
 
@@ -247,8 +247,8 @@ def convert_dates(rows: list[list[str]]) -> list[list[str]]:
     unique_dates = dates_extraction.extract_unique_dates_from_rows(rows)
 
     # Convert the unique dates using the Gemini date conversion module
-    date_converter = gemini_date_converion.DateConverter()
-    converted_dates = date_converter.convert_dates(dates=unique_dates)
+    date_converter = gemini_date_conversion.DateConverter()
+    converted_dates = date_converter.get_converted_dates(dates=unique_dates)
 
     date_map = {date: converted for date, converted in zip(unique_dates, converted_dates)}
 
@@ -258,8 +258,7 @@ def convert_dates(rows: list[list[str]]) -> list[list[str]]:
             if original_date in date_map:
                 row[-2] = date_map[original_date]
             else:
-                # print(f"Warning: Date '{original_date}' not found in conversion map.")
-                continue
+                print(f"Warning: Date '{original_date}' not found in conversion map.")
 
     return rows
 
