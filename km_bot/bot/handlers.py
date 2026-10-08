@@ -226,16 +226,16 @@ async def handle_query(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
     user_id = update.effective_user.id
     current = now()
     state = await in_thread(svc.storage.get_state, user_id)
-
-    if state and state[0] in (STATE_ROUTE_FROM, STATE_ROUTE_TO):
-        mode = "f" if state[0] == STATE_ROUTE_FROM else "t"
-        await resolve_route_station(update, context, text, mode)
-        return
-
     query = parse_query(text, current)
     if query is None:
         return
-    if state and state[0] == STATE_NUMBER:
+
+    if state and state[0] in (STATE_ROUTE_FROM, STATE_ROUTE_TO) and query.kind == "station" and not query.at:
+        mode = "f" if state[0] == STATE_ROUTE_FROM else "t"
+        await resolve_route_station(update, context, text, mode)
+        return
+    if state:
+        # A train number or a complete route typed mid-wizard starts over instead of being a station name.
         await in_thread(svc.storage.clear_state, user_id)
     if query.kind == "number" and not force_station:
         view = await in_thread(views.number_view, svc, update.effective_chat.id, query.number, current.date(), current)

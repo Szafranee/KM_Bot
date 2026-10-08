@@ -233,3 +233,11 @@ def test_errors_are_acknowledged(wsgi, telegram, monkeypatch):
     status, _ = call(wsgi, message("Śródmieście"))
     assert status == "200 OK"
     assert "Coś poszło nie tak" in last_text(telegram)
+
+
+def test_number_typed_during_route_wizard_cancels_it(wsgi, telegram):
+    call(wsgi, press("M:newroute"))
+    call(wsgi, message("91450"))
+    assert "Flirt 3" in last_text(telegram)
+    call(wsgi, message("Śródmieście"))
+    assert "Odjazdy KM i SKM" in last_text(telegram)
