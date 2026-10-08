@@ -82,6 +82,7 @@ def _services(settings: Settings):
 
 def cmd_poll(args: argparse.Namespace, settings: Settings) -> int:
     from telegram import Update
+    from telegram.ext import Application
 
     from km_bot.bot.app import build_application, configure_bot
     from km_bot.bot.tracking import check_watches
@@ -96,13 +97,17 @@ def cmd_poll(args: argparse.Namespace, settings: Settings) -> int:
                 log.exception("Tracked trains check failed")
             await asyncio.sleep(TRACKER_INTERVAL)
 
+    tasks: list[asyncio.Task] = []
+
     async def post_init(app) -> None:
         await configure_bot(app)
-        app.create_task(tracker_loop(app))
+        tasks.append(asyncio.get_running_loop().create_task(tracker_loop(app)))
 
-    from telegram.ext import Application
+    async def post_stop(app) -> None:
+        for task in tasks:
+            task.cancel()
 
-    builder = Application.builder().token(settings.telegram_token).post_init(post_init)
+    builder = Application.builder().token(settings.telegram_token).post_init(post_init).post_stop(post_stop)
     app = build_application(svc, builder=builder)
     log.warning("Polling mode - this removes the webhook of this bot token until `set-webhook` is run again.")
     app.run_polling(allowed_updates=[Update.MESSAGE, Update.CALLBACK_QUERY])

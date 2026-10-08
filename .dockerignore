@@ -179,3 +179,9 @@ site
 # created by virtualenv automatically
 venv\**\*
 fly.toml
+
+# KM Bot runtime data and local files
+data
+extra_files
+tests
+deploy.config.*
