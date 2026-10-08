@@ -1,6 +1,6 @@
 # Alternative deployment (VPS / any Docker host): long polling + periodic jobs in one container.
 # The primary deployment is Phusion Passenger with a webhook - see DEPLOYMENT.md.
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 
 WORKDIR /km_bot
 
