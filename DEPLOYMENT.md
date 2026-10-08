@@ -16,7 +16,7 @@ cron ─▶ python -m km_bot check-tracked  (notifications for tracked trains, e
 1. **Subdomain with SSL** – create e.g. `kmbot.xce.pl` and enable a Let's Encrypt certificate.
    Telegram only delivers webhooks over HTTPS with a valid certificate.
 2. **Python application** – create a Passenger Python app for the subdomain, exactly like GrafikPlusWeb:
-   - Python **3.12** (must match `.python-version`),
+   - Python **3.14** (must match `.python-version`),
    - application root: the directory used as `REMOTE_APP_DIR` (e.g. `/home/<user>/domains/kmbot.xce.pl/KM_Bot`),
    - startup file `passenger_wsgi.py`, entry point `application`.
 3. **`.env` on the server** – create `REMOTE_APP_DIR/.env` from `.env.example` (it is never uploaded by the

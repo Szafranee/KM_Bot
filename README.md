@@ -78,7 +78,7 @@ into a temporary database and swapped in atomically.
 
 ## Setup
 
-Requirements: Python 3.12 (same as the hosting), [uv](https://docs.astral.sh/uv/).
+Requirements: Python 3.14 (same as the hosting), [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync
