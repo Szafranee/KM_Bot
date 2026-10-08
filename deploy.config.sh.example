@@ -1,0 +1,33 @@
+# shellcheck shell=bash
+# shellcheck disable=SC2034  # variables are used externally via: source deploy.config.sh
+# ============================================================
+#  deploy.config.sh - Server configuration for deploy.sh
+#  This file is in .gitignore - it will NOT be committed!
+#
+#  SETUP: copy this file to deploy.config.sh and fill in your values.
+#         cp deploy.config.sh.example deploy.config.sh
+# ============================================================
+
+# ── Server connection ────────────────────────────────────────
+export SERVER_USER="user"                          # SSH username
+export SERVER_HOST="your-server.com"               # IP address or domain
+export SERVER_PORT=22                              # SSH port
+export SSH_KEY="$HOME/.ssh/id_rsa"                 # path to SSH key (or "" to use password)
+export REMOTE_APP_DIR="/home/user/domains/kmbot.example.pl/KM_Bot"   # path to the app on the server
+export SSH_HOST_KEY_POLICY="accept-new"             # safer than disabling host-key checks
+
+# Command to trigger a Phusion Passenger application restart
+# Leave "" to skip automatic restart
+export RESTART_COMMAND="mkdir -p \"${REMOTE_APP_DIR}/tmp\" && touch \"${REMOTE_APP_DIR}/tmp/restart.txt\""
+
+# ── Application name (shown in deploy menu) ─────────────────
+export APP_NAME="KM Bot"
+
+# Files for the built-in presets are discovered automatically from Git.
+# Add only project-specific exclusions or genuinely custom presets here.
+EXTRA_NEVER_DEPLOY_PATTERNS=()
+EXTRA_AUTO_DEPLOY_EXCLUDE_PATTERNS=()
+declare -A CUSTOM_DEPLOY_PRESETS=()
+
+
+

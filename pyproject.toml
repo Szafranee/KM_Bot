@@ -1,0 +1,42 @@
+[project]
+name = "km-bot"
+version = "2.0.0"
+description = "Telegram bot for Koleje Mazowieckie: rolling stock by train number, live departures and delays"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "beautifulsoup4>=4.13.3",
+    "google-genai>=1.0.0",
+    "httpx>=0.28.1",
+    "ijson>=3.3.0",
+    "PyMuPDF>=1.25.3",
+    "python-dotenv>=1.0.1",
+    "python-telegram-bot>=22.0",
+    "tzdata>=2025.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.0",
+    "ruff>=0.9.0",
+]
+
+[tool.uv]
+package = false
+default-groups = ["dev"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["data", "extra_files"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]

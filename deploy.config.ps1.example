@@ -1,0 +1,29 @@
+# ============================================================
+#  deploy.config.ps1 - Server configuration for deploy.ps1
+#  This file is in .gitignore - it will NOT be committed!
+#
+#  SETUP: copy this file to deploy.config.ps1 and fill in your values.
+#         cp deploy.config.ps1.example deploy.config.ps1
+# ============================================================
+
+# ── Server connection ────────────────────────────────────────
+$SERVER_USER     = "user"                          # SSH username
+$SERVER_HOST     = "your-server.com"               # IP address or domain
+$SERVER_PORT     = 22                              # SSH port
+$SSH_KEY         = "$HOME\.ssh\id_rsa"             # path to SSH key (or "" to use password)
+$REMOTE_APP_DIR  = "/home/user/domains/kmbot.example.pl/KM_Bot"      # path to the app on the server
+$SSH_HOST_KEY_POLICY = "accept-new"                 # safer than disabling host-key checks
+
+# Command to trigger a Phusion Passenger application restart
+# Leave "" to skip automatic restart
+$RESTART_COMMAND = "mkdir -p `"${REMOTE_APP_DIR}/tmp`" && touch `"${REMOTE_APP_DIR}/tmp/restart.txt`""
+
+# ── Application name (shown in deploy menu) ─────────────────
+$APP_NAME = "KM Bot"
+
+# Files for the built-in presets are discovered automatically from Git.
+# Add only project-specific exclusions or genuinely custom presets here.
+$EXTRA_NEVER_DEPLOY_PATTERNS = @()
+$EXTRA_AUTO_DEPLOY_EXCLUDE_PATTERNS = @()
+$CUSTOM_DEPLOY_PRESETS = @{}
+
