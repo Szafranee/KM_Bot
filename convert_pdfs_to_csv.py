@@ -207,7 +207,8 @@ def separate_date_annotations_to_new_column(row: list[str]) -> list:
     Returns:
         list: The modified row with date annotations moved to a new column.
     """
-    # Function body will be implemented later
+    if not row:
+        return row
 
     dates = row[-1]
 
