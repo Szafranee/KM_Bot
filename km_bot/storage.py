@@ -14,14 +14,14 @@ from km_bot import db
 
 MIGRATIONS: list[str] = [
     """
-    CREATE TABLE favorite_stations (
+    CREATE TABLE IF NOT EXISTS favorite_stations (
         user_id INTEGER NOT NULL,
         station_id TEXT NOT NULL,
         name TEXT NOT NULL,
         created_at REAL NOT NULL,
         PRIMARY KEY (user_id, station_id)
     );
-    CREATE TABLE favorite_routes (
+    CREATE TABLE IF NOT EXISTS favorite_routes (
         id INTEGER PRIMARY KEY,
         user_id INTEGER NOT NULL,
         from_id TEXT NOT NULL,
@@ -31,13 +31,13 @@ MIGRATIONS: list[str] = [
         created_at REAL NOT NULL,
         UNIQUE (user_id, from_id, to_id)
     );
-    CREATE TABLE user_state (
+    CREATE TABLE IF NOT EXISTS user_state (
         user_id INTEGER PRIMARY KEY,
         state TEXT NOT NULL,
         data TEXT NOT NULL,
         updated_at REAL NOT NULL
     );
-    CREATE TABLE watches (
+    CREATE TABLE IF NOT EXISTS watches (
         id INTEGER PRIMARY KEY,
         chat_id INTEGER NOT NULL,
         user_id INTEGER NOT NULL,
@@ -52,12 +52,12 @@ MIGRATIONS: list[str] = [
         created_at REAL NOT NULL,
         UNIQUE (chat_id, trip_id, service_date)
     );
-    CREATE TABLE rt_cache (
+    CREATE TABLE IF NOT EXISTS rt_cache (
         key TEXT PRIMARY KEY,
         fetched_at REAL NOT NULL,
         payload TEXT NOT NULL
     );
-    CREATE TABLE rt_trips (
+    CREATE TABLE IF NOT EXISTS rt_trips (
         trip_id TEXT NOT NULL,
         start_date TEXT NOT NULL,
         payload TEXT NOT NULL,
@@ -104,6 +104,7 @@ class Storage:
         return db.open_db(self.path)
 
     def migrate(self) -> None:
+        # Statements are idempotent (IF NOT EXISTS): several Passenger processes may start at once.
         with db.open_db(self.path) as conn:
             version = conn.execute("PRAGMA user_version").fetchone()[0]
             for index, script in enumerate(MIGRATIONS[version:], start=version + 1):

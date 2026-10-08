@@ -185,7 +185,7 @@ async def prompt_route_station(update: Update, context: ContextTypes.DEFAULT_TYP
     if mode == "t" and state and state[1].get("from_name"):
         question = f"Dokąd jedziesz z <b>{views.esc(state[1]['from_name'])}</b>?"
     rows = [[views.button(f"⭐ {name}", cb.PICK, sid, mode)] for sid, name in favorites]
-    view = View(f"🧭 {question} Wpisz nazwę stacji lub wyślij lokalizację 📍.", rows)
+    view = View(f"🧭 {question} Wpisz nazwę stacji lub wyślij lokalizację 📍.\n<i>/anuluj – przerwij</i>", rows)
     if edit_message and update.callback_query:
         await edit(update, view)
     else:
