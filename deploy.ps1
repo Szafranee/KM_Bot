@@ -184,7 +184,7 @@ function Test-DependencyFilesIncluded {
         $normalizedItem = ($item -replace '\\', '/') -replace '^\./', ''
         $normalizedItem = $normalizedItem.TrimEnd('/')
 
-        if ($normalizedItem -in @('pyproject.toml', 'uv.lock')) {
+        if ($normalizedItem -in @('pyproject.toml', 'uv.lock', '.python-version')) {
             return $true
         }
 
@@ -379,7 +379,7 @@ function Show-Menu {
     Write-Host "  [1] all       - all deployable Git files (automatic)" -ForegroundColor Yellow
     Write-Host "  [2] python    - km_bot/ and passenger_wsgi.py" -ForegroundColor Yellow
     Write-Host "  [3] assets    - assets/ (rolling stock photos)" -ForegroundColor Yellow
-    Write-Host "  [4] dependencies - pyproject.toml + uv.lock (runs uv sync)" -ForegroundColor Yellow
+    Write-Host "  [4] dependencies - pyproject.toml, uv.lock, .python-version (runs uv sync)" -ForegroundColor Yellow
     Write-Host "  [5] custom    - enter paths manually (SMART SEARCH)" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "  [Q] Quit" -ForegroundColor DarkGray
