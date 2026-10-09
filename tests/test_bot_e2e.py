@@ -260,3 +260,38 @@ def test_help_menu_button_and_command(wsgi, telegram):
     assert "H:0" in buttons(telegram.sent("sendMessage")[-1])
     call(wsgi, message("/samouczek"))
     assert "Samouczek" in last_text(telegram)
+
+
+class SlowAnswers(FakeTelegram):
+    """Telegram that times out on answerCallbackQuery, like the incident seen on the server."""
+
+    async def do_request(self, url, method, request_data=None, **kwargs):
+        if url.endswith("/answerCallbackQuery"):
+            from telegram.error import TimedOut
+
+            raise TimedOut("Timed out")
+        return await super().do_request(url, method, request_data, **kwargs)
+
+
+def test_callback_action_survives_answer_timeout(services, monkeypatch, caplog):
+    monkeypatch.setattr("km_bot.bot.handlers.now", lambda: at(8, 0))
+    telegram = SlowAnswers()
+
+    def factory(svc) -> Application:
+        builder = Application.builder().token(svc.settings.telegram_token).request(telegram)
+        return build_application(svc, with_updater=False, builder=builder.get_updates_request(FakeTelegram()))
+
+    app = create_app(services.settings, BotRunner(services, factory))
+    call(app, press("RF:102"))  # "🧭 Trasa stąd" - the button from the server log
+    assert "Dokąd jedziesz z <b>Warszawa Śródmieście</b>?" in last_text(telegram)
+    call(app, press("D:102:0"))
+    assert "Odjazdy KM i SKM" in last_text(telegram, "editMessageText")
+    assert "Could not answer callback query" in caplog.text
+    assert "Error while handling update" not in caplog.text
+
+
+def test_default_builder_uses_longer_timeouts(services):
+    from km_bot.bot.app import READ_TIMEOUT, default_builder
+
+    app = build_application(services, with_updater=False, builder=default_builder("123:TEST"))
+    assert app.bot.request.read_timeout == READ_TIMEOUT

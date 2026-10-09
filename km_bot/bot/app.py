@@ -27,8 +27,24 @@ COMMANDS = [
 ]
 
 
+# python-telegram-bot defaults to a 5 s read timeout; shared hosting occasionally needs longer.
+CONNECT_TIMEOUT = 10
+READ_TIMEOUT = 15
+
+
+def default_builder(token: str):
+    return (
+        Application.builder()
+        .token(token)
+        .connect_timeout(CONNECT_TIMEOUT)
+        .read_timeout(READ_TIMEOUT)
+        .write_timeout(READ_TIMEOUT)
+        .pool_timeout(CONNECT_TIMEOUT)
+    )
+
+
 def build_application(svc: Services, *, with_updater: bool = True, builder=None) -> Application:
-    builder = builder or Application.builder().token(svc.settings.telegram_token)
+    builder = builder or default_builder(svc.settings.telegram_token)
     if not with_updater:
         builder = builder.updater(None)
     app = builder.build()

@@ -82,9 +82,8 @@ def _services(settings: Settings):
 
 def cmd_poll(args: argparse.Namespace, settings: Settings) -> int:
     from telegram import Update
-    from telegram.ext import Application
 
-    from km_bot.bot.app import build_application, configure_bot
+    from km_bot.bot.app import build_application, configure_bot, default_builder
     from km_bot.bot.tracking import check_watches
 
     svc = _services(settings)
@@ -107,7 +106,7 @@ def cmd_poll(args: argparse.Namespace, settings: Settings) -> int:
         for task in tasks:
             task.cancel()
 
-    builder = Application.builder().token(settings.telegram_token).post_init(post_init).post_stop(post_stop)
+    builder = default_builder(settings.telegram_token).post_init(post_init).post_stop(post_stop)
     app = build_application(svc, builder=builder)
     log.warning("Polling mode - this removes the webhook of this bot token until `set-webhook` is run again.")
     app.run_polling(allowed_updates=[Update.MESSAGE, Update.CALLBACK_QUERY])
