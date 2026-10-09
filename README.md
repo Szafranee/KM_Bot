@@ -14,6 +14,7 @@ KM's PDF lists, and now also shows live departures, delays and direct connection
 | ⭐ Favourites | ⭐ on a departure board | One-tap boards for favourite stations |
 | 📍 Location | share location | 3 nearest KM/SKM stations |
 | 🔔 Tracking | 🔔 on a train card | Notification when the delay changes by ≥3 min, when the train is cancelled and ~10 min before departure from your station |
+| 📖 Tutorial | `/samouczek`, "❓ Pomoc" in the menu, offered after `/start` | 7-page guide with "▶ Wypróbuj" buttons that show real live examples, plus a legend of all symbols |
 
 Station search understands Warsaw shortcuts (*Śródmieście → Warszawa Śródmieście*, *Koło → Warszawa Koło*),
 abbreviations (*wwa*, *zach*, *maz*), colloquial names (*Okęcie*, *lotnisko*, *centralny*) and declined

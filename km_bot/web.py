@@ -99,7 +99,7 @@ def create_app(settings: Settings | None = None, runner: BotRunner | None = None
                 return _json(start_response, "400 Bad Request", {"error": "invalid body"})
             try:
                 payload = json.loads(environ["wsgi.input"].read(length))
-            except (ValueError, KeyError):
+            except ValueError, KeyError:
                 return _json(start_response, "400 Bad Request", {"error": "invalid json"})
             try:
                 runner.process(payload)

@@ -20,7 +20,7 @@ from telegram.ext import ApplicationHandlerStop, ContextTypes
 
 from km_bot import stations as station_search
 from km_bot.bot import callbacks as cb
-from km_bot.bot import views
+from km_bot.bot import tutorial, views
 from km_bot.bot.parsing import parse_query
 from km_bot.bot.services import Services
 from km_bot.bot.views import View
@@ -34,12 +34,14 @@ MENU_ROUTES = "🧭 Moje trasy"
 MENU_FAVORITES = "⭐ Ulubione"
 MENU_LOCATION = "📍 Najbliższa stacja"
 MENU_WATCHES = "🔔 Obserwowane"
+MENU_HELP = "❓ Pomoc"
 
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
         [MENU_DEPARTURES, MENU_NUMBER],
         [MENU_ROUTES, MENU_FAVORITES],
         [KeyboardButton(MENU_LOCATION, request_location=True), MENU_WATCHES],
+        [MENU_HELP],
     ],
     resize_keyboard=True,
     is_persistent=True,
@@ -111,10 +113,15 @@ async def check_access(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await in_thread(services(context).storage.clear_state, update.effective_user.id)
     await reply(update.effective_message, View(views.START_TEXT), keyboard=True)
+    await reply(update.effective_message, tutorial.offer_view())
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await reply(update.effective_message, views.help_view(), keyboard=True)
+
+
+async def tutorial_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await reply(update.effective_message, tutorial.contents_view())
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -210,6 +217,7 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         MENU_ROUTES: routes_command,
         MENU_FAVORITES: favorites_command,
         MENU_WATCHES: watches_command,
+        MENU_HELP: help_command,
     }
     if text in menu:
         await menu[text](update, context)
@@ -454,6 +462,13 @@ async def callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 )
             else:
                 view = await in_thread(views.watches_view, svc, chat_id, current)
+        case cb.TUTORIAL:
+            view = tutorial.page_view(data.int_arg(0))
+        case cb.TUTORIAL_DEMO:
+            await query.answer()
+            demo = await in_thread(tutorial.demo_view, svc, data.arg(0) or "", user_id, chat_id, current)
+            await reply(update.effective_message, demo)
+            return
         case cb.MENU:
             await query.answer()
             if data.arg(0) == "newroute":
