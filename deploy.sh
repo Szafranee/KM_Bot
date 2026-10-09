@@ -160,7 +160,7 @@ selection_includes_dependencies() {
     for item in "$@"; do
         normalized="${item#./}"
         normalized="${normalized%/}"
-        if [[ "$normalized" == "pyproject.toml" || "$normalized" == "uv.lock" ]]; then
+        if [[ "$normalized" == "pyproject.toml" || "$normalized" == "uv.lock" || "$normalized" == ".python-version" ]]; then
             return 0
         fi
 
@@ -319,7 +319,7 @@ show_menu() {
         echo "  [1] all       - all deployable Git files (automatic)"
         echo "  [2] python    - km_bot/ and passenger_wsgi.py"
         echo "  [3] assets    - assets/ (rolling stock photos)"
-        echo "  [4] dependencies - pyproject.toml + uv.lock (runs uv sync)"
+        echo "  [4] dependencies - pyproject.toml, uv.lock, .python-version (runs uv sync)"
         echo "  [5] custom    - enter paths manually"
         echo ""
         echo "  [Q] Quit"
