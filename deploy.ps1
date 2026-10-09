@@ -542,6 +542,9 @@ test "`$ACTUAL_PYTHON" = "`$EXPECTED_PYTHON" &&
 mkdir -p data &&
 .venv/bin/python -c 'from km_bot.web import create_app; create_app()'
 "@
+# The script may be checked out with CRLF line endings on Windows. Bash on the server must get
+# plain LF: a stray CR splits the && chain, so a failed step would no longer stop the deploy.
+$SyncCommand = $SyncCommand -replace "`r", ""
 $SshArgs = Get-SshArgs
 $SshArgs += @("$SERVER_USER@$SERVER_HOST", $SyncCommand)
 ssh @SshArgs
