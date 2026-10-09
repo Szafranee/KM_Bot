@@ -88,7 +88,29 @@ def delay_text(
 def platform_text(stop: StopTime) -> str:
     if not stop.platform:
         return ""
-    return f"peron {esc(stop.platform)}" + (f", tor {esc(stop.track)}" if stop.track else "")
+    return f"<b>peron {esc(stop.platform)}" + (f", tor {esc(stop.track)}" if stop.track else "") + "</b>"
+
+
+def board_entry(
+    index: int, times: str, delay: str, trip: TripInfo, stop: StopTime, destination: str, stock: str, note: str = ""
+) -> list[str]:
+    """One train on a board: times + delay / train + platform / direction / rolling stock.
+
+    The platform sits right next to the train (it is what you need at the station) and the direction gets
+    its own line, so the lines stay short enough not to wrap on a phone.
+    """
+    lines = [f"<b>{index}. {times}</b>" + (f"  <b>{delay}</b>" if delay else "")]
+    train = [esc(trip_label(trip))]
+    if platform := platform_text(stop):
+        train.append(platform)
+    elif note:
+        train.append(note)
+    lines.append("    " + " · ".join(train))
+    lines.append(f"    → {esc(destination)}")
+    if stock:
+        lines.append(f"    🚆 {stock}")
+    lines.append("")
+    return lines
 
 
 def stock_text(entries: Sequence[StockEntry]) -> str:
@@ -208,19 +230,17 @@ def departures_view(
         stop_status = status.at(dep.stop.seq) if status else None
         delay = delay_text(stop_status, status, dep.stop.departure, now)
         day = "" if dep.stop.time.date() == now.date() else f" ({day_label(dep.stop.time.date(), now.date())})"
-        lines.append(
-            f"<b>{index}. {hhmm(dep.stop.departure)}</b>{day}  {esc(trip_label(dep.trip))}"
-            + (f"  <b>{delay}</b>" if delay else "")
+        note = esc(dep.stop.station_name) if dep.stop.station_id != station_id else ""
+        lines += board_entry(
+            index,
+            f"{hhmm(dep.stop.departure)}{day}",
+            delay,
+            dep.trip,
+            dep.stop,
+            dep.destination_name,
+            stock_text(svc.stock_for_trip(dep.trip, dep.service_date)),
+            note,
         )
-        details = [f"→ {esc(dep.destination_name)}"]
-        if platform := platform_text(dep.stop):
-            details.append(platform)
-        if dep.stop.station_id != station_id and not dep.stop.platform:
-            details.append(esc(dep.stop.station_name))
-        lines.append("    " + " · ".join(details))
-        if stock := stock_text(svc.stock_for_trip(dep.trip, dep.service_date)):
-            lines.append(f"    🚆 {stock}")
-        lines.append("")
     lines.append(f"<i>{realtime_footer(realtime)}</i>")
 
     back = cb.back_departures(station_id, offset, at_arg)
@@ -296,17 +316,16 @@ def connections_view(
         delay = delay_text(status.at(con.origin.seq) if status else None, status, con.origin.departure, now)
         day = "" if con.origin.time.date() == now.date() else f" ({day_label(con.origin.time.date(), now.date())})"
         minutes = int((con.target.time - con.origin.time).total_seconds() // 60)
-        lines.append(
-            f"<b>{index}. {hhmm(con.origin.departure)} → {hhmm(con.target.arrival or con.target.departure)}</b>"
-            f"{day} ({minutes} min)" + (f"  <b>{delay}</b>" if delay else "")
+        times = f"{hhmm(con.origin.departure)} → {hhmm(con.target.arrival or con.target.departure)}{day}"
+        lines += board_entry(
+            index,
+            f"{times} ({minutes} min)",
+            delay,
+            con.trip,
+            con.origin,
+            con.destination_name,
+            stock_text(svc.stock_for_trip(con.trip, con.service_date)),
         )
-        details = [esc(trip_label(con.trip)), f"kier. {esc(con.destination_name)}"]
-        if platform := platform_text(con.origin):
-            details.append(platform)
-        lines.append("    " + " · ".join(details))
-        if stock := stock_text(svc.stock_for_trip(con.trip, con.service_date)):
-            lines.append(f"    🚆 {stock}")
-        lines.append("")
     lines.append(f"<i>{realtime_footer(realtime)}</i>")
 
     if route_id is not None:
