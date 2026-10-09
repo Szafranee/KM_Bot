@@ -82,7 +82,7 @@ def load_or_parse(pdf: Path) -> ParsedPdf:
                 else None
             )
             return ParsedPdf(pdf.name, period, [PdfRow(**row) for row in data["rows"]])
-    except (OSError, ValueError, KeyError, TypeError):
+    except OSError, ValueError, KeyError, TypeError:
         pass
     parsed = parse_pdf(pdf)
     cache.parent.mkdir(parents=True, exist_ok=True)

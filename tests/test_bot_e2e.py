@@ -140,7 +140,7 @@ def test_webhook_rejects_wrong_secret_and_bad_bodies(wsgi, telegram):
 
 def test_start_shows_menu_keyboard(wsgi, telegram):
     assert call(wsgi, message("/start"))[0] == "200 OK"
-    params = telegram.sent("sendMessage")[-1]
+    params = telegram.sent("sendMessage")[-2]  # welcome with the menu, then the tutorial offer
     assert "Kolei Mazowieckich" in params["text"]
     assert "Odjazdy" in json.dumps(params["reply_markup"], ensure_ascii=False)
 
@@ -241,3 +241,22 @@ def test_number_typed_during_route_wizard_cancels_it(wsgi, telegram):
     assert "Flirt 3" in last_text(telegram)
     call(wsgi, message("Śródmieście"))
     assert "Odjazdy KM i SKM" in last_text(telegram)
+
+
+def test_start_offers_tutorial_and_tutorial_flow(wsgi, telegram):
+    call(wsgi, message("/start"))
+    assert "H:0" in buttons(telegram.sent("sendMessage")[-1])
+    call(wsgi, press("H:0"))
+    assert "Samouczek" in last_text(telegram, "editMessageText")
+    call(wsgi, press("H:1"))
+    page = telegram.sent("editMessageText")[-1]
+    assert "Odjazdy ze stacji" in page["text"] and "HX:departures" in buttons(page)
+    call(wsgi, press("HX:departures"))
+    assert "Odjazdy KM i SKM" in last_text(telegram)  # demo arrives as a new message
+
+
+def test_help_menu_button_and_command(wsgi, telegram):
+    call(wsgi, message("❓ Pomoc"))
+    assert "H:0" in buttons(telegram.sent("sendMessage")[-1])
+    call(wsgi, message("/samouczek"))
+    assert "Samouczek" in last_text(telegram)

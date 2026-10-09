@@ -21,6 +21,7 @@ COMMANDS = [
     BotCommand("trasy", "Moje zapisane trasy"),
     BotCommand("ulubione", "Ulubione stacje"),
     BotCommand("obserwowane", "Obserwowane pociągi"),
+    BotCommand("samouczek", "Samouczek krok po kroku"),
     BotCommand("pomoc", "Jak korzystać z bota"),
     BotCommand("info", "Stan danych rozkładowych"),
 ]
@@ -41,6 +42,7 @@ def register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("start", handlers.start))
     app.add_handler(CommandHandler(["pomoc", "help"], handlers.help_command))
     app.add_handler(CommandHandler(["anuluj", "cancel"], handlers.cancel))
+    app.add_handler(CommandHandler(["samouczek", "tutorial"], handlers.tutorial_command))
     app.add_handler(CommandHandler(["odjazdy", "stacja"], handlers.departures_command))
     app.add_handler(CommandHandler(["pociag", "numer"], handlers.number_command))
     app.add_handler(CommandHandler(["trasy", "trasa"], handlers.routes_command))

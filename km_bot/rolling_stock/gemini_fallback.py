@@ -44,7 +44,7 @@ class GeminiDateConverter:
     def _load_cache(self) -> dict[str, list[str]]:
         try:
             return json.loads(self.cache_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        except OSError, ValueError:
             return {}
 
     def _save_cache(self) -> None:
@@ -77,7 +77,7 @@ class GeminiDateConverter:
                 continue
             try:
                 dates = {date.fromisoformat(d) for d in item.get("dates", [])}
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 log.warning("Gemini returned invalid dates for %r", expression)
                 continue
             if not dates or any(d not in period for d in dates):

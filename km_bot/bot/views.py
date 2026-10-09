@@ -120,7 +120,8 @@ START_TEXT = (
     "• Napisz <b>trasę</b> (np. <i>Nowa Iwiczna &gt; Służewiec</i> lub <i>Koło - Wschodnia 17:30</i>), a pokażę "
     "pociągi bezpośrednie.\n"
     "• Wyślij <b>lokalizację</b>, a znajdę najbliższe stacje.\n\n"
-    "Menu na dole ekranu prowadzi do ulubionych stacji, zapisanych tras i obserwowanych pociągów."
+    "Menu na dole ekranu prowadzi do ulubionych stacji, zapisanych tras i obserwowanych pociągów, "
+    "a „❓ Pomoc” – do samouczka."
 )
 
 HELP_TEXT = (
@@ -134,14 +135,15 @@ HELP_TEXT = (
     "📍 <b>Najbliższa stacja</b> – wyślij lokalizację.\n"
     "🔔 <b>Obserwowanie</b> – przycisk „Obserwuj” na karcie pociągu: dam znać o zmianie opóźnienia, odwołaniu "
     "i przypomnę ~10 min przed odjazdem.\n\n"
-    "Komendy: /odjazdy &lt;stacja&gt;, /pociag &lt;numer&gt;, /trasy, /ulubione, /obserwowane, /info.\n\n"
+    "Komendy: /odjazdy &lt;stacja&gt;, /pociag &lt;numer&gt;, /trasy, /ulubione, /obserwowane, /samouczek, "
+    "/info.\n\n"
     "<i>Dane: rozkład i opóźnienia PKP PLK (Otwarte Dane Kolejowe, GTFS mkuran.pl, CC BY 4.0), "
     "typ taboru z zestawień Kolei Mazowieckich.</i>"
 )
 
 
 def help_view() -> View:
-    return View(HELP_TEXT)
+    return View(HELP_TEXT, [[button("📖 Samouczek krok po kroku", cb.TUTORIAL, 0)]])
 
 
 # --- station search ------------------------------------------------------------------------------

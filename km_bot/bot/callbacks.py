@@ -28,6 +28,8 @@ NUMBER = "N"  # N:<number>:<yyyymmdd>
 PICK = "P"  # P:<station>:<mode>        mode: d = departures, f = route from, t = route to
 ROUTE_FROM_HERE = "RF"  # RF:<station>
 MENU = "M"  # M:<name>
+TUTORIAL = "H"  # H:<page>                  0 = table of contents
+TUTORIAL_DEMO = "HX"  # HX:<demo>           sends a real example as a new message
 NOOP = "_"
 
 
