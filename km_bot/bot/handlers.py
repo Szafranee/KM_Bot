@@ -15,7 +15,7 @@ from telegram import (
     Update,
 )
 from telegram.constants import ChatType, ParseMode
-from telegram.error import BadRequest
+from telegram.error import BadRequest, NetworkError
 from telegram.ext import ApplicationHandlerStop, ContextTypes
 
 from km_bot import stations as station_search
@@ -77,6 +77,20 @@ async def reply(message: Message, view: View, *, keyboard: bool = False) -> None
     )
 
 
+async def safe_answer(query, text: str | None = None, *, show_alert: bool = False) -> None:
+    """Answers a callback query on a best-effort basis.
+
+    The answer only stops the button's loading spinner (and shows an optional toast), so a slow or failed
+    request must not abort the action the user asked for.
+    """
+    try:
+        await query.answer(text, show_alert=show_alert)
+    except NetworkError as exc:  # includes TimedOut
+        log.warning("Could not answer callback query: %s", exc)
+    except BadRequest as exc:  # e.g. "query is too old" after a slow response
+        log.info("Callback query not answered: %s", exc)
+
+
 async def edit(update: Update, view: View) -> None:
     query = update.callback_query
     try:
@@ -101,7 +115,7 @@ async def check_access(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
     log.info("Rejected update from user %s", user.id if user else None)
     if update.callback_query:
-        await update.callback_query.answer("Ten bot jest prywatny.", show_alert=True)
+        await safe_answer(update.callback_query, "Ten bot jest prywatny.", show_alert=True)
     elif update.effective_message:
         await update.effective_message.reply_text("🔒 Ten bot jest prywatny.")
     raise ApplicationHandlerStop
@@ -404,7 +418,7 @@ async def callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         case cb.PICK:
             mode = data.arg(1) or "d"
             if mode in ("f", "t"):
-                await query.answer()
+                await safe_answer(query)
                 await route_station_picked(update, context, data.arg(0), mode, editing=True)
                 return
             view = await in_thread(views.departures_view, svc, user_id, data.arg(0), 0, current)
@@ -446,7 +460,7 @@ async def callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     STATE_ROUTE_TO,
                     {"from": station.id, "from_name": station.name, "save": False},
                 )
-                await query.answer()
+                await safe_answer(query)
                 await prompt_route_station(update, context, "t")
                 return
         case cb.WATCH:
@@ -465,21 +479,21 @@ async def callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         case cb.TUTORIAL:
             view = tutorial.page_view(data.int_arg(0))
         case cb.TUTORIAL_DEMO:
-            await query.answer()
+            await safe_answer(query)
             demo = await in_thread(tutorial.demo_view, svc, data.arg(0) or "", user_id, chat_id, current)
             await reply(update.effective_message, demo)
             return
         case cb.MENU:
-            await query.answer()
+            await safe_answer(query)
             if data.arg(0) == "newroute":
                 await in_thread(svc.storage.set_state, user_id, STATE_ROUTE_FROM, {"save": True})
                 await prompt_route_station(update, context, "f")
             return
         case _:
-            await query.answer()
+            await safe_answer(query)
             return
 
-    await query.answer(alert or (view.alert if view else None))
+    await safe_answer(query, alert or (view.alert if view else None))
     if view is not None:
         await edit(update, view)
 
@@ -519,7 +533,12 @@ async def watch_trip(update: Update, context: ContextTypes.DEFAULT_TYPE, data: c
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-    log.error("Error while handling update %s", getattr(update, "update_id", None), exc_info=context.error)
+    update_id = getattr(update, "update_id", None)
+    if isinstance(context.error, NetworkError):
+        # Transient connection problems with the Bot API - one line is enough, no traceback.
+        log.warning("Network error while handling update %s: %r", update_id, context.error)
+    else:
+        log.error("Error while handling update %s", update_id, exc_info=context.error)
     if isinstance(update, Update):
         try:
             if update.callback_query:
