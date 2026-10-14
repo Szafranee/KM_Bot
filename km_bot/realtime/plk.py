@@ -19,6 +19,8 @@ from km_bot.storage import Storage
 log = logging.getLogger(__name__)
 
 API_URL = "https://pdp-api.plk-sa.pl/api/v1"
+# PLK carrier codes (/dictionaries/carriers): Koleje Mazowieckie and SKM Warszawa.
+BOARD_CARRIERS = "KM,SKM"
 
 
 def plk_ids(trip_id: str) -> tuple[int, int] | None:
@@ -80,13 +82,15 @@ class PlkProvider:
         board_requests = [r for r in requests if r.station_ids]
         stations = sorted({s for r in board_requests for s in r.station_ids if s.isdigit()})
         if stations:
+            # Only KM/SKM and only the board station: the forecast for not-yet-reached stations is part of
+            # that station's entry, so full routes of every carrier (~12 MB at Warszawa Wschodnia) are not needed.
             payload = self._get(
                 "/operations",
                 {
                     "stations": ",".join(stations),
+                    "carriersInclude": BOARD_CARRIERS,
                     "withPlanned": "true",
-                    "fullRoutes": "true",
-                    "pageSize": 2000,
+                    "pageSize": 5000,
                 },
             )
             for train in payload.get("trains") or []:
