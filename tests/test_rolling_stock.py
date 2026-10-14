@@ -135,22 +135,74 @@ def test_newer_pdf_wins(tmp_path, monkeypatch):
     assert repo.lookup("1001", date(2026, 9, 30))[0].stock == "ER75"
 
 
-def test_gemini_fallback_is_used_and_validated(tmp_path, monkeypatch):
-    period = Period(date(2026, 10, 4), date(2026, 10, 24))
+OCTOBER = Period(date(2026, 10, 4), date(2026, 10, 24))
+
+
+def _answer(text, ranges=(), rule=None, except_=(), also=(), understood=True):
+    return {
+        "input": text,
+        "understood": understood,
+        "ranges": [{"from": a, "to": b} for a, b in ranges],
+        "rule": rule,
+        "except": list(except_),
+        "also": list(also),
+    }
+
+
+def test_gemini_answers_are_evaluated_by_our_calendar(tmp_path, monkeypatch):
     converter = GeminiDateConverter("key", "model", tmp_path / "cache.json")
     answers = {
         "results": [
-            {"input": "co drugi dzień", "dates": ["2026-10-04", "2026-10-06"]},
-            {"input": "poza okresem", "dates": ["2026-11-04"]},
+            _answer("5-23 X w dni robocze", [("2026-10-05", "2026-10-23")], rule="D"),
+            _answer("codziennie"),  # no explicit dates = whole validity period
+            _answer("patrz komunikat", understood=False),
         ]
     }
     monkeypatch.setattr(converter, "_ask", lambda expressions, p: answers)
-    result = converter.convert(["co drugi dzień", "poza okresem"], period)
-    assert result == {"co drugi dzień": {date(2026, 10, 4), date(2026, 10, 6)}}
-    # The valid answer is cached and no request is needed the second time.
+    result = converter.convert(["5-23 X w dni robocze", "codziennie", "patrz komunikat"], OCTOBER)
+    assert len(result["5-23 X w dni robocze"]) == 15
+    assert all(d.weekday() < 5 for d in result["5-23 X w dni robocze"])  # weekdays computed by us, not the model
+    assert result["codziennie"] == set(OCTOBER.days())
+    assert "patrz komunikat" not in result
+    # Accepted answers are cached and no request is needed the second time.
     monkeypatch.setattr(converter, "_ask", lambda expressions, p: pytest.fail("should use cache"))
-    again = GeminiDateConverter("key", "model", tmp_path / "cache.json").convert(["co drugi dzień"], period)
-    assert again == {"co drugi dzień": {date(2026, 10, 4), date(2026, 10, 6)}}
+    again = GeminiDateConverter("key", "model", tmp_path / "cache.json").convert(["5-23 X w dni robocze"], OCTOBER)
+    assert again == {"5-23 X w dni robocze": result["5-23 X w dni robocze"]}
+
+
+@pytest.mark.parametrize(
+    ("text", "answer"),
+    [
+        # Listing Saturdays as exceptions invents days (10, 17) that are not written in the text.
+        (
+            "4-24 X oprócz sobót",
+            _answer("4-24 X oprócz sobót", [("2026-10-04", "2026-10-24")], except_=["2026-10-10", "2026-10-17"]),
+        ),
+        # Dates outside the validity period (a wrong month or year).
+        ("4-24 XI (D)", _answer("4-24 XI (D)", [("2026-11-04", "2026-11-24")], rule="D")),
+        # An unknown rule code.
+        ("4-24 X (Q)", _answer("4-24 X (Q)", [("2026-10-04", "2026-10-24")], rule="Q")),
+        # A rule that leaves no dates at all (4 X 2026 is a Sunday).
+        ("4 X (6)", _answer("4 X (6)", [("2026-10-04", "2026-10-04")], rule="6")),
+        # Dates for an expression that has none.
+        ("codziennie", _answer("codziennie", [("2026-10-05", "2026-10-20")])),
+        # Malformed date.
+        ("4-24 X", _answer("4-24 X", [("2026-10-04", "24.10.2026")])),
+    ],
+)
+def test_suspicious_gemini_answers_are_rejected(tmp_path, monkeypatch, text, answer):
+    converter = GeminiDateConverter("key", "model", tmp_path / "cache.json")
+    monkeypatch.setattr(converter, "_ask", lambda expressions, p: {"results": [answer]})
+    assert converter.convert([text], OCTOBER) == {}
+
+
+def test_written_day_numbers_ignore_rules_and_footnotes():
+    from km_bot.rolling_stock.gemini_fallback import written_day_numbers
+
+    assert written_day_numbers("10 III-29 V (1-6) oprócz 21 IV,1,3 V") == {1, 3, 10, 21, 29}
+    assert written_day_numbers("4-24 X (D) [1]") == {4, 24}
+    assert written_day_numbers("04.10-24.10") == {4, 24}
+    assert written_day_numbers("codziennie") == set()
 
 
 def test_gemini_without_key_is_skipped(tmp_path):

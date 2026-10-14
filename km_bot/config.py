@@ -32,7 +32,7 @@ class Settings:
     telegram_token: str = ""
     plk_api_key: str = ""
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.5-flash-lite"
     webhook_url: str = ""
     webhook_secret: str = ""
     public_base_url: str = ""

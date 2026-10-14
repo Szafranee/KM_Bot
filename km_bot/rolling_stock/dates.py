@@ -293,13 +293,35 @@ def parse_schedule(text: str | None, period: Period | None, fallback_year: int |
         dates = set(period.days())
     else:
         raise DateParseError(f"No dates in {text!r}")
+    excluded_dates = set().union(*(parse_date_list(chunk, period, fallback_year) for chunk in excluded))
+    added_dates = set().union(*(parse_date_list(chunk, period, fallback_year) for chunk in added))
+    return build_schedule(dates, rule, excluded_dates, added_dates, period)
+
+
+def build_schedule(
+    base: set[date], rule: str | None, excluded: set[date], added: set[date], period: Period | None
+) -> set[date]:
+    """Applies a day rule, exceptions and additions - shared by the parser and the Gemini fallback.
+
+    The checks below turn "parsed without an error but probably wrong" into an error, so such values go to the
+    fallback instead of silently producing a wrong schedule. None of them fires on any value from the 2024-2026
+    PDFs; each would indicate a misread month, year or rule:
+
+    * a date outside the PDF validity period,
+    * an exception ("oprócz") that is not in the range it is excluded from,
+    * an empty result.
+    """
+    if period is not None:
+        outside = sorted(d for d in base | excluded | added if d not in period)
+        if outside:
+            raise DateParseError(f"Dates outside the validity period {period}: {outside[:3]}")
+    if excluded - base:
+        raise DateParseError(f"Exceptions not in the date range: {sorted(excluded - base)[:3]}")
+    dates = set(base)
     if rule:
         predicate = day_rule(rule)
         dates = {d for d in dates if predicate(d)}
-    for chunk in excluded:
-        dates -= parse_date_list(chunk, period, fallback_year)
-    for chunk in added:
-        dates |= parse_date_list(chunk, period, fallback_year)
-    if period is not None:
-        dates = {d for d in dates if d in period}
+    dates = (dates - excluded) | added
+    if not dates:
+        raise DateParseError("The expression results in no dates at all")
     return dates

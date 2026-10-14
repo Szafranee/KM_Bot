@@ -92,8 +92,18 @@ class TestSchedules:
     def test_empty_value_means_whole_period(self):
         assert parse_schedule("", OCTOBER_2026) == set(OCTOBER_2026.days())
 
-    def test_dates_are_clipped_to_period(self):
-        assert max(parse_schedule("1-31 X", OCTOBER_2026)) == date(2026, 10, 24)
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "1-31 X",  # runs past the validity period - a misread month or year
+            "4 X (6)",  # 4 X 2026 is a Sunday: the rule leaves nothing
+            "5-9 X oprócz 20 X",  # exception outside the range it is removed from
+            "4-24 X (D) oprócz 3 XI",  # exception outside the period
+        ],
+    )
+    def test_suspicious_results_raise_instead_of_guessing(self, text):
+        with pytest.raises(DateParseError):
+            parse_schedule(text, OCTOBER_2026)
 
     def test_unknown_rule_raises(self):
         with pytest.raises(DateParseError):

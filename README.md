@@ -50,9 +50,16 @@ The pipeline (`km_bot/rolling_stock`):
    from the PDF validity period, the official KM legend – (A) Mon–Fri, (B) Mon–Fri + Sun, (C) Sat, Sun and
    holidays, (D) Mon–Fri except holidays, (E) Mon–Sat except holidays, (+) Sun and holidays, (1)…(7) weekdays
    – plus `oprócz …` / `i …` clauses and Polish public holidays (incl. Easter-based ones and 24 XII).
-   All 145 distinct values found in the 2024–2026 PDFs parse deterministically.
-4. Notations the parser does not know are sent to **Gemini as a fallback**; answers are validated (dates
-   must lie in the validity period) and cached, so a new format no longer breaks the import.
+   All 145 distinct values found in the 2024–2026 PDFs parse deterministically. To avoid results that parse
+   without an error but are wrong, a value is rejected when any date falls outside the PDF validity period, an
+   `oprócz` date is not in its range, or nothing is left after applying the rule.
+4. Rejected notations go to **Gemini (`gemini-3.5-flash-lite`) as a fallback**. The model does not list dates;
+   it translates the notation into ranges, a legend rule, exceptions and additions, and our own calendar code
+   computes the days with the same checks as above. Answers are also rejected when they use a day number that
+   is not written in the notation, and the model may answer "not understood". Accepted answers are cached.
+   A live check on 22 notations (known PDF values plus new phrasings such as `w dni robocze`, `pn-pt`,
+   `oprócz sobót`) gave 22/22 in three runs, with unclear inputs refused rather than guessed. A retired model
+   name (404) falls back to the `gemini-flash-lite-latest` alias automatically.
 5. `importer.py` stores one row per train number and day in `rolling_stock.sqlite`; when PDFs overlap, the
    newer list wins.
 
