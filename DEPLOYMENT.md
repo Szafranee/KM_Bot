@@ -106,6 +106,12 @@ Files are discovered with `git ls-files --cached --others --exclude-standard`. S
 (`.env`, `deploy.config.*`, `data/`, SQLite files, `.venv`, caches, logs) are never uploaded; tests, docs,
 Docker files and the deploy scripts are excluded from automatic presets.
 
+The selected files are packed into one `.tgz` archive (`tar` ships with Windows 10+, macOS and Linux), uploaded
+with a single SCP call and extracted on the server with a single SSH call. Uploading file by file needed two SSH
+connections per file, which tripped the hosting's connection limits on larger deploys (stalls, timeouts). The
+archive is extracted only after it arrived completely, a failed upload is retried up to three times, and every
+SSH/SCP call uses `ConnectTimeout` and keepalives, so a stalled connection fails instead of hanging.
+
 ## Realtime data: PKP PLK API key (optional)
 
 Delays come from the keyless [mkuran.pl realtime feed](https://mkuran.pl/gtfs/) by default. For data
