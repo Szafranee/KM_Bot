@@ -128,8 +128,36 @@ def test_plk_board_request_uses_station_query(tmp_path, timetable):
     assert statuses[request.key].at(1).delay == 5
     assert seen[0].url.path == "/api/v1/operations"
     assert seen[0].url.params["stations"] == "100,101"
+    assert seen[0].url.params["carriersInclude"] == "KM,SKM"
+    assert "fullRoutes" not in seen[0].url.params  # ~12 MB with full routes vs ~0.5 MB without
     provider.statuses([request])
     assert len(seen) == 1  # cached
+
+
+def test_plk_station_only_entry_uses_forecast(tmp_path, timetable):
+    """Shape returned by the real API without fullRoutes: only the board station, forecast in actual*."""
+    details = _details(timetable)
+    stop = details.stops[2]  # Warszawa Śródmieście, scheduled 08:15
+    train = {
+        "scheduleId": 2026,
+        "orderId": 1,
+        "operatingDate": "2026-10-09",
+        "trainStatus": "P",
+        "stations": [
+            {
+                "stationId": 102,
+                "plannedSequenceNumber": 3,
+                "actualSequenceNumber": 3,
+                "plannedDeparture": "2026-10-09T08:15:00",
+                "actualArrival": "2026-10-09T08:21:00",
+                "actualDeparture": "2026-10-09T08:22:00",
+            }
+        ],
+    }
+    provider = PlkProvider(Storage(tmp_path / "app.sqlite"), "key")
+    status = provider.to_status(train, TripRequest(details.trip.trip_id, DAY, (stop,), ("102",)))
+    assert status.at(stop.seq).departure_delay == 7
+    assert not status.at(stop.seq).passed
 
 
 class Failing:
