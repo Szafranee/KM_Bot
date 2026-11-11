@@ -40,10 +40,13 @@ def test_zachodnia_includes_peron_9_marked_and_peron_9_alone_filters(services):
     assert services.timetable.station_group("101") == ["101"]  # picked alone: only its own trains
 
 
-def test_peron_9_is_still_found_by_name_but_wkd_station_is_hidden(services):
+def test_wkd_station_can_be_picked_alone_and_has_filter_buttons(services):
+    merged = views.departures_view(services, 1, "102", 0, at(8, 0))
+    assert "Tylko WKD" in str(merged.markup)
+    alone = views.departures_view(services, 1, "WKD_wsrod", 0, at(8, 0))
+    assert "WKD · 1000" in alone.text and "razem z" not in alone.text and "Cała stacja" in str(alone.markup)
+    assert views.search_stations(services, "Śródmieście WKD")[0].station.id == "WKD_wsrod"
     assert views.search_stations(services, "zachodnia peron 9")[0].station.id == "101"
-    ids = {m.station.id for m in views.search_stations(services, "Śródmieście WKD")}
-    assert "WKD_wsrod" not in ids and views.search_stations(services, "Śródmieście WKD")[0].station.id == "102"
 
 
 def test_merged_station_lists_wkd_trains(services):

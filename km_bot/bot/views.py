@@ -339,8 +339,9 @@ def departures_view(
         rows.append([button("⭐ Dodaj do ulubionych", cb.FAV_ADD, station_id)])
     rows.append([button("🧭 Trasa stąd", cb.ROUTE_FROM_HERE, station_id)])
     if station_id in svc.timetable.groups.filters:
-        other, label = svc.timetable.groups.filters[station_id]
-        rows.append([button(label, cb.DEPARTURES, other, 0)])
+        rows.append(
+            [button(label, cb.DEPARTURES, other, 0) for other, label in svc.timetable.groups.filters[station_id]]
+        )
     return View("\n".join(lines), rows)
 
 

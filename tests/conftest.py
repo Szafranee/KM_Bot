@@ -318,9 +318,14 @@ def gtfs_db(tmp_path: Path) -> Path:
 
 TEST_GROUPS = StationGroups(
     groups={"102": ("102", "WKD_wsrod"), "100": ("100", "101", "WKD_wzach")},
-    alone=frozenset({"101"}),
+    alone=frozenset({"101", "WKD_wsrod"}),
     markers={"101": "🔶 Peron 9"},
-    filters={"100": ("101", "🔶 Tylko peron 9"), "101": ("100", "🚉 Cała Zachodnia")},
+    filters={
+        "100": (("101", "🔶 Tylko peron 9"),),
+        "101": (("100", "🚉 Cała Zachodnia"),),
+        "102": (("WKD_wsrod", "🟩 Tylko WKD"),),
+        "WKD_wsrod": (("102", "🚉 Cała stacja"),),
+    },
 )
 
 

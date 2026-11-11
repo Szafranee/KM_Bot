@@ -25,8 +25,8 @@ class StationGroups:
     """Members that can still be picked on their own (their own board / route end)."""
     markers: dict[str, str] = field(default_factory=dict)
     """Station id -> label that replaces "peron" on a merged board, e.g. ``"🔶 Peron 9"``."""
-    filters: dict[str, tuple[str, str]] = field(default_factory=dict)
-    """Station id -> (other station id, button label) to switch between "everything" and "only this part"."""
+    filters: dict[str, tuple[tuple[str, str], ...]] = field(default_factory=dict)
+    """Station id -> ((other station id, button label), ...) to switch between "everything" and "only this part"."""
 
     def members(self, station_id: str, known: Collection[str] | None = None) -> list[str]:
         """The station itself plus everything shown with it, restricted to ids present in the timetable."""
@@ -50,11 +50,18 @@ DEFAULT_GROUPS = StationGroups(
         "33506": ("33506", "34868", "WKD_wzach"),  # Warszawa Zachodnia (+ Peron 9 + WKD)
         "33456": ("33456", "WKD_walje"),  # Warszawa Aleje Jerozolimskie
     },
-    alone=frozenset({"34868"}),
+    alone=frozenset({"34868", "WKD_wsrod", "WKD_wocho", "WKD_wzach", "WKD_walje"}),
     markers={"34868": "🔶 Peron 9"},
     filters={
-        "33506": ("34868", "🔶 Tylko peron 9"),
-        "34868": ("33506", "🚉 Cała Zachodnia"),
+        "33571": (("WKD_wsrod", "🟩 Tylko WKD"),),
+        "33498": (("WKD_wocho", "🟩 Tylko WKD"),),
+        "33506": (("34868", "🔶 Tylko peron 9"), ("WKD_wzach", "🟩 Tylko WKD")),
+        "33456": (("WKD_walje", "🟩 Tylko WKD"),),
+        "34868": (("33506", "🚉 Cała Zachodnia"),),
+        "WKD_wsrod": (("33571", "🚉 Cała stacja"),),
+        "WKD_wocho": (("33498", "🚉 Cała stacja"),),
+        "WKD_wzach": (("33506", "🚉 Cała Zachodnia"),),
+        "WKD_walje": (("33456", "🚉 Cała stacja"),),
     },
 )
 

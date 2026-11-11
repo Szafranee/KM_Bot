@@ -24,7 +24,7 @@ come first naturally; ambiguous queries show a short list to pick from. The WKD 
 (Śródmieście, Ochota, Zachodnia, Aleje Jerozolimskie) are merged with them (`km_bot/station_groups.py`): boards and
 A→B routes include KM, SKM and WKD together. *Warszawa Zachodnia* also includes Peron 9 (S4, S40, R80, R90), marked
 🔶 on the list; type *zachodnia peron 9* or tap “🔶 Tylko peron 9” to see only that platform, and “🚉 Cała Zachodnia”
-to go back.
+to go back. Each merged station also has “🟩 Tylko WKD” (and *Śródmieście WKD* finds the WKD station alone).
 
 ### Menu and live board rules
 
