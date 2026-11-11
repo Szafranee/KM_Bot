@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 import re
 import unicodedata
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 
@@ -147,14 +147,20 @@ def _rank(query_norm: str, query_tokens: list[str], stations: Iterable[Station])
     return matches
 
 
-def search(query: str, stations: Iterable[Station], limit: int = 5) -> list[Match]:
+def search(query: str, stations: Iterable[Station], limit: int = 5, hidden: Collection[str] = ()) -> list[Match]:
     query_norm = normalize(query)
     if not query_norm:
         return []
-    stations = list(stations)
+    stations = [s for s in stations if s.id not in hidden]
     alias = ALIASES.get(query_norm)
     query_tokens = tokens(alias or query)
     matches = _rank(normalize(alias) if alias else query_norm, query_tokens, stations)
+    if "wkd" in query_tokens and len(query_tokens) > 1 and (not matches or matches[0].score < 90):
+        # "Śródmieście WKD": the WKD station is merged into the KM/SKM one, so search for the plain name.
+        trimmed = [t for t in query_tokens if t != "wkd"]
+        retry = _rank(" ".join(trimmed), trimmed, stations)
+        if retry and (not matches or retry[0].score > matches[0].score):
+            matches = retry
     if not matches or matches[0].score < 70:
         # Declined forms ("z Wschodniej", "do Otwocka") - retry with stems and keep the better result.
         stemmed = [_stem(token) for token in query_tokens]

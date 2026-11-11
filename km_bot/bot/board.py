@@ -8,12 +8,15 @@ A board that hides a train the moment its scheduled time passes is too strict:
 So the board looks back ``LOOKBACK`` minutes and keeps a train when
 
 1. the live data says it already passed the station (``passed``): only if its expected time is still ahead,
-2. a delay is reported: while the *expected* departure (schedule + delay) is at most ``LEAVING`` in the past,
-3. otherwise (on time or no data): while the scheduled time is at most ``buffer`` in the past, where the buffer
-   is ``BASE_BUFFER`` and grows to ``LONG_BUFFER`` when the next train is more than ``LONG_GAP`` away - missing
-   a rare train costs more than a few extra minutes of an already-gone one.
+2. otherwise while the *expected* departure - the schedule plus the reported delay, if any - is at most ``buffer``
+   in the past. Reported delays are not precise either (a train announced as "+2" can easily be "+6"), so a delayed
+   train gets the same buffer as an on-time one. The buffer is ``BASE_BUFFER`` and grows to ``LONG_BUFFER`` when
+   the next train is more than ``LONG_GAP`` away - missing a rare train costs more than a few extra minutes of an
+   already-gone one.
 
-Trains kept only by the buffer are flagged so the board can say that, by schedule, they have left.
+The buffer is measured from the board's reference time: now, or the start time the user asked for ("Koło 17:30").
+Trains whose expected departure is already behind the real clock are flagged so the board can say that they may
+have left.
 """
 
 from __future__ import annotations
@@ -28,7 +31,6 @@ LOOKBACK = timedelta(minutes=20)
 BASE_BUFFER = timedelta(minutes=3)
 LONG_BUFFER = timedelta(minutes=5)
 LONG_GAP = timedelta(minutes=12)
-LEAVING = timedelta(minutes=1)
 EXTRA_CANDIDATES = 40
 """Departures within the look-back window that may be filtered out again; fetched on top of the page."""
 
@@ -38,15 +40,20 @@ def select_visible[T](
     stop_of: Callable[[T], StopTime],
     key_of: Callable[[T], tuple[str, object]],
     realtime: RealtimeResult,
-    now: datetime,
+    ref: datetime,
+    now: datetime | None = None,
 ) -> list[tuple[T, bool]]:
-    """Filters look-back candidates. Returns (item, left_by_schedule) in the original order."""
+    """Filters look-back candidates. Returns (item, may_have_left) in the original order.
+
+    ``ref`` is the board's reference time; ``now`` (default ``ref``) is the real clock, used for the flag.
+    """
+    now = now or ref
 
     def scheduled(item: T) -> datetime:
         return stop_of(item).time
 
-    upcoming = [scheduled(item) for item in items if scheduled(item) >= now]
-    buffer = LONG_BUFFER if not upcoming or min(upcoming) - now > LONG_GAP else BASE_BUFFER
+    upcoming = [scheduled(item) for item in items if scheduled(item) >= ref]
+    buffer = LONG_BUFFER if not upcoming or min(upcoming) - ref > LONG_GAP else BASE_BUFFER
 
     visible: list[tuple[T, bool]] = []
     for item in items:
@@ -56,15 +63,13 @@ def select_visible[T](
         stop_status = status.at(stop.seq) if status else None
         cancelled = bool(status and status.cancelled) or bool(stop_status and stop_status.cancelled)
         delay = stop_status.delay if stop_status else None
+        expected = planned + timedelta(minutes=max(delay or 0, 0))
         if cancelled:
-            keep = planned >= now
+            keep = planned >= ref
         elif stop_status is not None and stop_status.passed:
-            keep = planned + timedelta(minutes=max(delay or 0, 0)) >= now
-        elif delay is not None and delay > 0:
-            keep = planned + timedelta(minutes=delay) >= now - LEAVING
+            keep = expected >= ref
         else:
-            keep = planned >= now - buffer
+            keep = expected >= ref - buffer
         if keep:
-            delayed = delay is not None and delay > 0
-            visible.append((item, planned < now and not delayed and not cancelled))
+            visible.append((item, expected < now and not cancelled))
     return visible

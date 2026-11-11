@@ -20,17 +20,19 @@ KM's PDF lists, and now also shows live departures, delays and direct connection
 Station search understands Warsaw shortcuts (*Śródmieście → Warszawa Śródmieście*, *Koło → Warszawa Koło*),
 abbreviations (*wwa*, *zach*, *maz*), colloquial names (*Okęcie*, *lotnisko*, *centralny*) and declined
 forms (*z Wschodniej*, *do Otwocka*). Only stations served by KM, SKM or WKD are searched, so Mazovian stations
-come first naturally; ambiguous queries show a short list to pick from. WKD stations that share a name with a
-KM station need the suffix (*Śródmieście WKD*). *Warszawa Zachodnia (Peron 9)* is a station of its own (S4, S40,
-R80 and R90 stop there), as in other timetable apps; type *zachodnia peron 9*.
+come first naturally; ambiguous queries show a short list to pick from. The WKD stations next to KM/SKM ones
+(Śródmieście, Ochota, Zachodnia, Aleje Jerozolimskie) are merged with them (`km_bot/station_groups.py`): boards and
+A→B routes include KM, SKM and WKD together. *Warszawa Zachodnia* also includes Peron 9 (S4, S40, R80, R90), marked
+🔶 on the list; type *zachodnia peron 9* or tap “🔶 Tylko peron 9” to see only that platform, and “🚉 Cała Zachodnia”
+to go back.
 
 ### Menu and live board rules
 
 * Menu: `Odjazdy | Moje trasy`, `Numer pociągu | Ulubione`, `Najbliższa stacja | Obserwowane`. Help is not a
   button any more; users still on the old keyboard get the new one when they tap the old “❓ Pomoc”.
-* Board look-back (`km_bot/bot/board.py`): a delayed train stays until its *expected* departure; an on-time or
-  unreported one stays 3 minutes after its scheduled time (5 minutes when the next train is more than 12 minutes
-  away); a train confirmed as gone is dropped at once; cancelled ones are never kept by the buffer.
+* Board look-back (`km_bot/bot/board.py`): a train stays 3 minutes after its *expected* departure (schedule + reported
+  delay, which is often imprecise), 5 minutes when the next train is more than 12 minutes away; a train confirmed as
+  gone is dropped at once; cancelled ones are never kept. It applies to custom times (*Śródmieście 17:30*) and A→B too.
 * Destructive buttons are red (`style=danger`, Bot API 9.4+; older clients show them plain) and name the action:
   “🗑 Usuń z ulubionych”.
 

@@ -18,6 +18,7 @@ from km_bot.rolling_stock import importer
 from km_bot.rolling_stock.dates import Period
 from km_bot.rolling_stock.pdf_parser import ParsedPdf, PdfRow
 from km_bot.rolling_stock.repository import RollingStockRepository
+from km_bot.station_groups import StationGroups
 from km_bot.storage import Storage
 from km_bot.timetable.gtfs_import import import_feed
 from km_bot.timetable.queries import TimetableRepository
@@ -315,6 +316,14 @@ def gtfs_db(tmp_path: Path) -> Path:
     return db_path
 
 
+TEST_GROUPS = StationGroups(
+    groups={"102": ("102", "WKD_wsrod"), "100": ("100", "101", "WKD_wzach")},
+    alone=frozenset({"101"}),
+    markers={"101": "🔶 Peron 9"},
+    filters={"100": ("101", "🔶 Tylko peron 9"), "101": ("100", "🚉 Cała Zachodnia")},
+)
+
+
 @pytest.fixture
 def timetable(gtfs_db: Path) -> TimetableRepository:
     return TimetableRepository(gtfs_db)
@@ -336,7 +345,7 @@ def services(tmp_path: Path, gtfs_db: Path, monkeypatch, fake_realtime: FakeReal
     )
     return Services(
         settings=settings,
-        timetable=TimetableRepository(gtfs_db),
+        timetable=TimetableRepository(gtfs_db, TEST_GROUPS),
         rolling_stock=RollingStockRepository(build_rolling_stock(tmp_path, monkeypatch)),
         storage=Storage(tmp_path / "app.sqlite"),
         realtime=RealtimeService([fake_realtime]),

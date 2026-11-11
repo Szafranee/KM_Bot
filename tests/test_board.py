@@ -29,9 +29,9 @@ def item(name: str, hour: int, minute: int, seq: int = 0) -> Item:
     return Item(name, stop, trip_id=name)
 
 
-def visible(items, statuses=None, now=NOW):
+def visible(items, statuses=None, now=NOW, ref=None):
     realtime = RealtimeResult(statuses or {})
-    result = select_visible(items, lambda i: i.stop, lambda i: (i.trip_id, i.service_date), realtime, now)
+    result = select_visible(items, lambda i: i.stop, lambda i: (i.trip_id, i.service_date), realtime, ref or now, now)
     return [(i.name, left) for i, left in result]
 
 
@@ -60,7 +60,14 @@ def test_delayed_train_is_kept_until_its_expected_departure():
     items = [item("late", 8, 6), item("next", 8, 20)]
     delayed = {("late", DAY): status(delay=6)}
     assert visible(items, delayed, now=at(8, 12)) == [("late", False), ("next", False)]  # expected 08:12
-    assert visible(items, delayed, now=at(8, 14)) == [("next", False)]
+    assert visible(items, delayed, now=at(8, 14)) == [("late", True), ("next", False)]  # delays are imprecise: buffer
+    assert visible(items, delayed, now=at(8, 16)) == [("next", False)]
+
+
+def test_buffer_is_measured_from_a_custom_start_time():
+    items = [item("a", 17, 28), item("b", 17, 40)]
+    assert visible(items, now=at(8, 0), ref=at(17, 30)) == [("a", False), ("b", False)]
+    assert visible(items, now=at(8, 0), ref=at(17, 33)) == [("b", False)]
 
 
 def test_reported_zero_delay_is_not_trusted_blindly():
@@ -111,9 +118,9 @@ def test_reported_delay_replaces_the_left_note(services, fake_realtime):
     assert "08:10" in text and "+5 min" in text and views.LEFT_TEXT not in text  # expected 08:15
 
 
-def test_custom_start_time_has_no_look_back(services):
+def test_custom_start_time_has_the_buffer_too(services):
     text = views.departures_view(services, 1, "102", 0, at(8, 12), at(8, 12)).text
-    assert "1. 08:15" in text and views.LEFT_TEXT not in text
+    assert "08:10" in text and "08:15" in text
 
 
 def test_paging_is_consistent_with_the_look_back(services):
