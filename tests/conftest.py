@@ -183,6 +183,99 @@ def build_gtfs(path: Path) -> Path:
     return path
 
 
+def build_wkd_gtfs(path: Path) -> Path:
+    """A tiny WKD feed shaped like https://mkuran.pl/gtfs/wkd.zip (string stop ids, ZKA bus stops and trips)."""
+
+    def stop(stop_id: str, name: str, lat: float, lon: float) -> dict[str, str]:
+        return {"stop_id": stop_id, "stop_name": name, "stop_lat": str(lat), "stop_lon": str(lon)}
+
+    def st(trip: str, seq: int, stop_id: str, time: str) -> dict[str, str]:
+        return {
+            "trip_id": trip,
+            "stop_sequence": str(seq),
+            "stop_id": stop_id,
+            "arrival_time": time,
+            "departure_time": time,
+        }
+
+    files = {
+        "agency.txt": _csv([{"agency_id": "0", "agency_name": "Warszawska Kolej Dojazdowa"}]),
+        "routes.txt": _csv(
+            [
+                {
+                    "agency_id": "0",
+                    "route_id": "A",
+                    "route_short_name": "WKD",
+                    "route_long_name": "Warszawska Kolej Dojazdowa",
+                    "route_type": "2",
+                    "route_color": "990099",
+                },
+                {
+                    "agency_id": "0",
+                    "route_id": "Z",
+                    "route_short_name": "WKD ZKA",
+                    "route_long_name": "Zastępcza Komunikacja Autobusowa",
+                    "route_type": "3",
+                    "route_color": "990000",
+                },
+            ]
+        ),
+        "trips.txt": _csv(
+            [
+                {
+                    "route_id": "A",
+                    "service_id": "1000_1",
+                    "trip_id": "1000_1",
+                    "trip_headsign": "Grodzisk Maz. Radońska",
+                    "trip_short_name": "1000",
+                },
+                {
+                    "route_id": "A",
+                    "service_id": "1002_1",
+                    "trip_id": "1002_1",
+                    "trip_headsign": "Warszawa Śródmieście WKD",
+                    "trip_short_name": "1002",
+                },
+                {
+                    "route_id": "Z",
+                    "service_id": "9000_1",
+                    "trip_id": "9000_1",
+                    "trip_headsign": "Bus",
+                    "trip_short_name": "9000",
+                },
+            ]
+        ),
+        "stops.txt": _csv(
+            [
+                stop("wsrod", "Warszawa Śródmieście WKD", 52.2285, 21.0010),
+                stop("wzach", "Warszawa Zachodnia WKD", 52.2190, 20.9680),
+                stop("gmrad", "Grodzisk Mazowiecki Radońska", 52.1020, 20.6320),
+                stop("wsrod_bus_d0", "Dworzec Centralny", 52.2275, 21.0003),
+            ]
+        ),
+        "stop_times.txt": _csv(
+            [
+                st("1000_1", 0, "wsrod", "08:20:00"),
+                st("1000_1", 1, "wzach", "08:25:00"),
+                st("1000_1", 2, "gmrad", "09:00:00"),
+                st("1002_1", 0, "gmrad", "08:30:00"),
+                st("1002_1", 1, "wzach", "09:05:00"),
+                st("1002_1", 2, "wsrod", "09:10:00"),
+                st("9000_1", 0, "wsrod_bus_d0", "08:00:00"),
+                st("9000_1", 1, "wzach", "08:30:00"),
+            ]
+        ),
+        "calendar_dates.txt": _csv(
+            [{"date": "20261009", "service_id": s, "exception_type": "1"} for s in ("1000_1", "1002_1", "9000_1")]
+        ),
+        "feed_info.txt": _csv([{"feed_publisher_name": "x", "feed_version": "2026-08-22T09:08:14"}]),
+    }
+    with zipfile.ZipFile(path, "w") as zf:
+        for name, content in files.items():
+            zf.writestr(name, content)
+    return path
+
+
 PDF_ROWS = [
     PdfRow("91450/1", "PRUSZKÓW", "08:00", "WARSZAWA WSCHODNIA", "08:20", "ER160", "2", "5-23 X (D)"),
     PdfRow("91450/1", "PRUSZKÓW", "08:00", "WARSZAWA WSCHODNIA", "08:20", "45WEkm", "1", "4-24 X (C)"),
@@ -218,7 +311,7 @@ class FakeRealtime:
 def gtfs_db(tmp_path: Path) -> Path:
     feed = build_gtfs(tmp_path / "feed.zip")
     db_path = tmp_path / "timetable.sqlite"
-    import_feed(feed, db_path)
+    import_feed(feed, db_path, build_wkd_gtfs(tmp_path / "wkd.zip"))
     return db_path
 
 

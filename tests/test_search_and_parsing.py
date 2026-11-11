@@ -57,7 +57,8 @@ def test_station_search(query, expected):
 
 
 def test_secondary_stations_are_hidden():
-    assert all("Peron" not in m.station.name for m in search.search("Zachodnia", STATIONS))
+    names = [m.station.name for m in search.search("Zachodnia", STATIONS)]
+    assert names[0] == "Warszawa Zachodnia" and "Warszawa Zachodnia (Peron 9)" in names  # both are findable
 
 
 def test_ambiguous_query_is_not_confident():
@@ -67,7 +68,6 @@ def test_ambiguous_query_is_not_confident():
 
 def test_normalize_and_group():
     assert search.normalize("  Warszawa  Śródmieście-WKD ") == "warszawa srodmiescie wkd"
-    assert search.group_name("Warszawa Zachodnia (Peron 9)") == "Warszawa Zachodnia"
 
 
 def test_nearest():

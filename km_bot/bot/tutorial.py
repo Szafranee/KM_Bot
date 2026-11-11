@@ -33,13 +33,19 @@ PAGES: tuple[Page, ...] = (
         "Napisz po prostu <b>nazwę stacji</b> – bez komend. Działają skróty i potoczne nazwy:\n"
         "• <i>Śródmieście</i>, <i>Koło</i>, <i>Wschodnia</i> → stacje warszawskie\n"
         "• <i>zach</i>, <i>wwa centralna</i>, <i>lotnisko</i>, <i>Okęcie</i>\n"
-        "• <i>Otwock</i>, <i>Mińsk</i>, <i>Grodzisk</i> → stacje podmiejskie\n\n"
+        "• <i>Otwock</i>, <i>Mińsk</i>, <i>Grodzisk</i> → stacje podmiejskie\n"
+        "• <i>Śródmieście WKD</i>, <i>Podkowa Leśna Główna</i> → Warszawska Kolej Dojazdowa (dopisz „WKD”, gdy "
+        "obok jest stacja KM o tej samej nazwie)\n"
+        "• <i>Zachodnia peron 9</i> → osobna stacja, z której jadą m.in. S4, S40, R80 i R90\n\n"
         "Chcesz zobaczyć pociągi na później? Dopisz godzinę: <i>Śródmieście 17:30</i>.\n\n"
-        "Na tablicy widać 5 najbliższych pociągów KM i SKM: godzinę, opóźnienie, kierunek, peron i typ taboru.\n"
+        "Na tablicy widać 5 najbliższych pociągów KM, SKM i WKD: godzinę, opóźnienie, numer i <b>peron</b>, "
+        "kierunek oraz typ taboru. Pociąg, który wg rozkładu dopiero co odjechał, zostaje jeszcze na liście "
+        "kilka minut z adnotacją ⏱ – mógł się spóźnić, a nie każde opóźnienie jest zgłaszane.\n"
         "Przyciski pod tablicą:\n"
         "• <b>1.–5.</b> – szczegóły pociągu,\n"
         "• <b>◀ / ▶</b> – wcześniejsze i późniejsze odjazdy, <b>🔄</b> – odświeżenie,\n"
-        "• <b>⭐</b> – dodanie stacji do ulubionych, <b>🧭 Trasa stąd</b> – wybór stacji docelowej.\n\n"
+        "• <b>⭐ Dodaj do ulubionych</b> (gdy stacja jest już ulubiona, przycisk zmienia się w czerwone "
+        "<b>🗑 Usuń z ulubionych</b>), <b>🧭 Trasa stąd</b> – wybór stacji docelowej.\n\n"
         "Gdy nazwa pasuje do kilku stacji, bot pokaże listę do wyboru.",
         demo="departures",
         demo_label=f"▶ Wypróbuj: {DEMO_STATION}",
@@ -77,7 +83,7 @@ PAGES: tuple[Page, ...] = (
         "<b>Ulubione stacje</b> – na tablicy odjazdów kliknij „⭐ Do ulubionych”. Potem przycisk "
         "„⭐ Ulubione” w menu otwiera tablicę jednym kliknięciem. Znak ✖ obok stacji ją usuwa.\n\n"
         "<b>Najbliższa stacja</b> – kliknij „📍 Najbliższa stacja” w menu (na telefonie). Telegram zapyta "
-        "o udostępnienie lokalizacji, a bot pokaże 3 najbliższe stacje KM i SKM z odległością.\n"
+        "o udostępnienie lokalizacji, a bot pokaże 3 najbliższe stacje KM, SKM i WKD z odległością.\n"
         "Lokalizacja przydaje się też przy dodawaniu trasy – zamiast wpisywać stację początkową.",
     ),
     Page(
@@ -93,16 +99,18 @@ PAGES: tuple[Page, ...] = (
     Page(
         "🔤 Co oznaczają symbole",
         "<b>Opóźnienia</b>\n"
-        "🟢 planowo · 🟡 +1–4 min · 🟠 +5–14 min · 🔴 15 min i więcej · ❌ odwołany\n\n"
+        "🟢 planowo · 🟡 +1–4 min · 🟠 +5–14 min · 🔴 15 min i więcej · ❌ odwołany · "
+        "⏱ wg rozkładu już odjechał (brak danych o opóźnieniu)\n\n"
         "<b>Trasa pociągu</b>\n"
         "✓ stacja minięta · ▶ następna stacja · 📍 Twoja stacja · <i>p. 2</i> peron\n\n"
         "<b>Oznaczenia pociągów</b>\n"
         "KM R1, RE1… – Koleje Mazowieckie (RE – przyspieszony), SKM S1… – Szybka Kolej Miejska, "
-        "🚌 ZKA – autobus zastępczy.\n\n"
+        "WKD – Warszawska Kolej Dojazdowa, 🚌 ZKA – autobus zastępczy.\n\n"
         "<b>Skąd są dane</b>\n"
-        "• Rozkład i opóźnienia: PKP PLK. Opóźnienia odświeżają się co kilka minut, więc mogą być lekko spóźnione.\n"
+        "• Rozkład i opóźnienia KM i SKM: PKP PLK. WKD: rozkład i opóźnienia ze strony wkd.com.pl. "
+        "Opóźnienia odświeżają się co kilka minut, więc mogą być lekko spóźnione.\n"
         "• Tabor: zestawienia publikowane przez KM na kilka tygodni naprzód. Na dni, na które nie ma jeszcze "
-        "zestawienia, bot napisze „tabor nieznany”. Dla SKM danych o taborze nie ma.",
+        "zestawienia, bot napisze „tabor nieznany”. Dla SKM i WKD danych o taborze nie ma.",
     ),
     Page(
         "✅ To wszystko!",
@@ -110,8 +118,8 @@ PAGES: tuple[Page, ...] = (
         "• <i>nazwa stacji</i> → odjazdy,\n"
         "• <i>numer pociągu</i> → tabor i trasa,\n"
         "• <i>stacja &gt; stacja</i> → pociągi bezpośrednie,\n"
-        "• menu na dole ekranu → ulubione, trasy, lokalizacja, obserwowane.\n\n"
-        "Samouczek możesz otworzyć ponownie komendą /samouczek albo przyciskiem „❓ Pomoc” w menu. "
+        "• menu na dole ekranu → trasy, numer pociągu, ulubione, lokalizacja, obserwowane.\n\n"
+        "Samouczek możesz otworzyć ponownie komendą /samouczek, a skrócony opis znajdziesz pod /pomoc. "
         "Wpisanie /anuluj przerywa dodawanie trasy.",
     ),
 )

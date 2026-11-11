@@ -104,7 +104,7 @@ async def check_watches(svc: Services, bot: Bot, now: datetime) -> int:
         realtime = await asyncio.to_thread(
             svc.realtime.statuses, [TripRequest(watch.trip_id, watch.service_date, tuple(details.stops))]
         )
-        group = set(svc.timetable.station_group(watch.station_id)) if watch.station_id else set()
+        group = {watch.station_id} if watch.station_id else set()
         evaluation = evaluate(
             watch, details, realtime.get((watch.trip_id, watch.service_date)), boarding_stop(details, group), now
         )

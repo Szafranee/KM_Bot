@@ -193,7 +193,7 @@ def test_ambiguous_station_offers_choice(wsgi, telegram):
     view = telegram.sent("sendMessage")[-1]
     assert "Którą stację" in view["text"]
     call(wsgi, press(buttons(view)[0]))
-    assert "Odjazdy KM i SKM" in last_text(telegram, "editMessageText")
+    assert "Odjazdy · stan na" in last_text(telegram, "editMessageText")
 
 
 def test_favourites_flow(wsgi, telegram):
@@ -240,7 +240,7 @@ def test_number_typed_during_route_wizard_cancels_it(wsgi, telegram):
     call(wsgi, message("91450"))
     assert "Flirt 3" in last_text(telegram)
     call(wsgi, message("Śródmieście"))
-    assert "Odjazdy KM i SKM" in last_text(telegram)
+    assert "Odjazdy · stan na" in last_text(telegram)
 
 
 def test_start_offers_tutorial_and_tutorial_flow(wsgi, telegram):
@@ -252,11 +252,11 @@ def test_start_offers_tutorial_and_tutorial_flow(wsgi, telegram):
     page = telegram.sent("editMessageText")[-1]
     assert "Odjazdy ze stacji" in page["text"] and "HX:departures" in buttons(page)
     call(wsgi, press("HX:departures"))
-    assert "Odjazdy KM i SKM" in last_text(telegram)  # demo arrives as a new message
+    assert "Odjazdy · stan na" in last_text(telegram)  # demo arrives as a new message
 
 
 def test_help_menu_button_and_command(wsgi, telegram):
-    call(wsgi, message("❓ Pomoc"))
+    call(wsgi, message("/pomoc"))
     assert "H:0" in buttons(telegram.sent("sendMessage")[-1])
     call(wsgi, message("/samouczek"))
     assert "Samouczek" in last_text(telegram)
@@ -285,7 +285,7 @@ def test_callback_action_survives_answer_timeout(services, monkeypatch, caplog):
     call(app, press("RF:102"))  # "🧭 Trasa stąd" - the button from the server log
     assert "Dokąd jedziesz z <b>Warszawa Śródmieście</b>?" in last_text(telegram)
     call(app, press("D:102:0"))
-    assert "Odjazdy KM i SKM" in last_text(telegram, "editMessageText")
+    assert "Odjazdy · stan na" in last_text(telegram, "editMessageText")
     assert "Could not answer callback query" in caplog.text
     assert "Error while handling update" not in caplog.text
 
@@ -295,3 +295,18 @@ def test_default_builder_uses_longer_timeouts(services):
 
     app = build_application(services, with_updater=False, builder=default_builder("123:TEST"))
     assert app.bot.request.read_timeout == READ_TIMEOUT
+
+
+def test_start_sends_the_new_keyboard(wsgi, telegram):
+    call(wsgi, message("/start"))
+    markup = telegram.sent("sendMessage")[-2]["reply_markup"]
+    markup = json.loads(markup) if isinstance(markup, str) else markup
+    texts = [b["text"] if isinstance(b, dict) else b for row in markup["keyboard"] for b in row]
+    assert "❓ Pomoc" not in texts and texts[:2] == ["🚉 Odjazdy", "🧭 Moje trasy"]
+
+
+def test_legacy_help_button_still_works_and_refreshes_the_keyboard(wsgi, telegram):
+    call(wsgi, message("❓ Pomoc"))
+    sent = telegram.sent("sendMessage")
+    assert "Jak korzystać z bota" in sent[-2]["text"]
+    assert "Zaktualizowałem menu" in sent[-1]["text"] and "keyboard" in json.dumps(sent[-1]["reply_markup"])

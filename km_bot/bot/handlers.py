@@ -34,14 +34,15 @@ MENU_ROUTES = "🧭 Moje trasy"
 MENU_FAVORITES = "⭐ Ulubione"
 MENU_LOCATION = "📍 Najbliższa stacja"
 MENU_WATCHES = "🔔 Obserwowane"
-MENU_HELP = "❓ Pomoc"
+# The help button was removed from the menu (rarely used, took a row). Clients that still show the old keyboard
+# send this text; it is handled so they get help and the new keyboard.
+LEGACY_MENU_HELP = "❓ Pomoc"
 
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
-        [MENU_DEPARTURES, MENU_NUMBER],
-        [MENU_ROUTES, MENU_FAVORITES],
+        [MENU_DEPARTURES, MENU_ROUTES],
+        [MENU_NUMBER, MENU_FAVORITES],
         [KeyboardButton(MENU_LOCATION, request_location=True), MENU_WATCHES],
-        [MENU_HELP],
     ],
     resize_keyboard=True,
     is_persistent=True,
@@ -132,6 +133,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await reply(update.effective_message, views.help_view(), keyboard=True)
+
+
+async def legacy_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await reply(update.effective_message, views.help_view())
+    await reply(update.effective_message, View("🔄 Zaktualizowałem menu na dole ekranu."), keyboard=True)
 
 
 async def tutorial_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -231,7 +237,7 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         MENU_ROUTES: routes_command,
         MENU_FAVORITES: favorites_command,
         MENU_WATCHES: watches_command,
-        MENU_HELP: help_command,
+        LEGACY_MENU_HELP: legacy_help,
     }
     if text in menu:
         await menu[text](update, context)
