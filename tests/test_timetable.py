@@ -95,3 +95,9 @@ def test_board_continues_into_the_next_day(timetable):
     numbers = [(d.trip.number, d.service_date) for d in timetable.departures("104", at(8, 30), limit=3)]
     # Friday is over at Pruszków, so Saturday's trains follow (including the weekend-only one).
     assert numbers == [("91450/1", SATURDAY), ("91452", SATURDAY)]
+
+
+def test_has_wkd_detects_an_import_without_wkd(gtfs_db):
+    from km_bot.cli import _has_wkd
+
+    assert _has_wkd(gtfs_db)

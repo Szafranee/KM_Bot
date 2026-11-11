@@ -117,6 +117,7 @@ def create_app(settings: Settings | None = None, runner: BotRunner | None = None
                     "status": "ok",
                     "timetable": meta.get("feed_version"),
                     "timetable_end": meta.get("feed_end_date"),
+                    "wkd_stations": services.timetable.wkd_station_count(),
                     "rolling_stock_until": str(services.rolling_stock.coverage_end() or ""),
                 },
             )
