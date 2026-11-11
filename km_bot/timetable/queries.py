@@ -165,6 +165,9 @@ class TimetableRepository:
     def station(self, station_id: str) -> Station | None:
         return self.stations().get(station_id)
 
+    def wkd_station_count(self) -> int:
+        return sum(1 for station_id in self.stations() if station_id.startswith("WKD_"))
+
     def station_group(self, station_id: str) -> list[str]:
         """Ids shown together with a station (WKD next door, Zachodnia + Peron 9), itself first."""
         return self.groups.members(station_id, self.stations())
