@@ -24,7 +24,7 @@ def test_departures_board(services, fake_realtime):
     assert "🚆 2× Flirt 3" in view.text  # Friday -> (D) row of the PDF
     assert "peron 1" in view.text
     assert all(len(d.encode()) <= 64 for d in _data(view))
-    assert "⭐ Do ulubionych" in _texts(view)
+    assert "⭐ Dodaj do ulubionych" in _texts(view)
     # The fake provider received one request per departure with the board station group.
     assert {r.station_ids for r in fake_realtime.calls[-1]} == {("102",)}
 
@@ -32,7 +32,7 @@ def test_departures_board(services, fake_realtime):
 def test_board_marks_favourite_and_paging(services):
     services.storage.add_favorite_station(1, "102", "Warszawa Śródmieście")
     view = views.departures_view(services, 1, "102", 5, at(8, 0))
-    assert "★ Usuń z ulubionych" in _texts(view)
+    assert "🗑 Usuń z ulubionych" in _texts(view)
     assert "◀ Wcześniej" in _texts(view)
 
 

@@ -1,7 +1,10 @@
-"""Downloads the Polish trains GTFS feed and imports the Koleje Mazowieckie and SKM Warszawa part of it.
+"""Downloads GTFS feeds and imports the Koleje Mazowieckie, SKM Warszawa and WKD timetables.
 
-Feed: https://mkuran.pl/gtfs/polish_trains.zip (built by Mikołaj Kuranowski from the PKP PLK open data API).
-Only the agencies listed in ``AGENCIES`` are imported, which keeps the database small (~5k trips).
+* https://mkuran.pl/gtfs/polish_trains.zip - built by Mikołaj Kuranowski from the PKP PLK open data API.
+  Only the agencies listed in ``AGENCIES`` (KM, SKM) are imported, which keeps the database small (~5k trips).
+* https://mkuran.pl/gtfs/wkd.zip - Warszawska Kolej Dojazdowa (not part of the PLK network, hence its own
+  feed). Ids are prefixed with ``WKD_`` so they cannot collide with PKP stations and trips; the stops, trips
+  and services of the replacement bus service (ZKA) are skipped.
 """
 
 from __future__ import annotations
@@ -25,7 +28,9 @@ from km_bot.rolling_stock.importer import expand_train_number
 log = logging.getLogger(__name__)
 
 GTFS_URL = "https://mkuran.pl/gtfs/polish_trains.zip"
+WKD_GTFS_URL = "https://mkuran.pl/gtfs/wkd.zip"
 AGENCIES = ("KM", "SKM")
+WKD_PREFIX = "WKD_"
 
 SCHEMA = """
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
@@ -122,7 +127,78 @@ def _seconds(value: str) -> int | None:
     return h * 3600 + m * 60 + s
 
 
-def import_feed(feed: Path, db_path: Path) -> dict[str, int]:
+def import_wkd(conn, feed: Path, first_pk: int) -> dict[str, int]:
+    """Adds the WKD rail timetable to an open (still being built) timetable database."""
+    with zipfile.ZipFile(feed) as zf:
+        info = next(_read(zf, "feed_info.txt"), {})
+        conn.execute("INSERT INTO meta VALUES ('wkd_feed_version', ?)", (info.get("feed_version", ""),))
+        routes = {r["route_id"]: r for r in _read(zf, "routes.txt") if r.get("route_type") == "2"}
+        conn.executemany(
+            "INSERT INTO routes VALUES (?, 'WKD', ?, ?, ?, 0)",
+            [
+                (WKD_PREFIX + rid, r["route_short_name"], r["route_long_name"], r.get("route_color"))
+                for rid, r in routes.items()
+            ],
+        )
+        trips: dict[str, int] = {}
+        services: set[str] = set()
+        rail_trips = (r for r in _read(zf, "trips.txt") if r["route_id"] in routes)
+        for pk, r in enumerate(rail_trips, start=first_pk):
+            trips[r["trip_id"]] = pk
+            services.add(r["service_id"])
+            conn.execute(
+                "INSERT INTO trips (pk, trip_id, route_id, service_id, number, headsign) VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    pk,
+                    WKD_PREFIX + r["trip_id"],
+                    WKD_PREFIX + r["route_id"],
+                    WKD_PREFIX + r["service_id"],
+                    r["trip_short_name"],
+                    r.get("trip_headsign"),
+                ),
+            )
+            conn.execute("INSERT INTO trip_numbers VALUES (?, ?)", (r["trip_short_name"], pk))
+
+        stops = {r["stop_id"]: r for r in _read(zf, "stops.txt")}
+        stop_times: dict[int, list[tuple]] = defaultdict(list)
+        for r in _read(zf, "stop_times.txt"):
+            pk = trips.get(r["trip_id"])
+            if pk is not None:
+                stop_times[pk].append(
+                    (pk, int(r["stop_sequence"]), None, WKD_PREFIX + r["stop_id"], _seconds(r["arrival_time"]),
+                     _seconds(r["departure_time"]), None, None, 0, 0)
+                )  # fmt: skip
+        used: dict[str, int] = defaultdict(int)
+        for pk, rows in stop_times.items():
+            rows.sort(key=lambda row: row[1])
+            last = len(rows) - 1
+            conn.executemany(
+                "INSERT INTO stop_times VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [(*row, int(i == 0), int(i == last)) for i, row in enumerate(rows)],
+            )
+            conn.execute(
+                "UPDATE trips SET first_station = ?, last_station = ?, first_departure = ? WHERE pk = ?",
+                (rows[0][3], rows[-1][3], rows[0][5], pk),
+            )
+            for row in rows:
+                used[row[3]] += 1
+        for station_id, count in used.items():
+            r = stops.get(station_id.removeprefix(WKD_PREFIX), {})
+            conn.execute(
+                "INSERT INTO stations VALUES (?, ?, ?, ?, ?)",
+                (station_id, r.get("stop_name") or station_id, _float(r.get("stop_lat")), _float(r.get("stop_lon")),
+                 count),
+            )  # fmt: skip
+        dates = [
+            (WKD_PREFIX + r["service_id"], r["date"])
+            for r in _read(zf, "calendar_dates.txt")
+            if r["service_id"] in services and r["exception_type"] == "1"
+        ]
+        conn.executemany("INSERT OR IGNORE INTO service_dates VALUES (?, ?)", dates)
+    return {"wkd_trips": len(trips), "wkd_stations": len(used)}
+
+
+def import_feed(feed: Path, db_path: Path, wkd_feed: Path | None = None) -> dict[str, int]:
     with zipfile.ZipFile(feed) as zf, db.rebuild_db(db_path) as conn:
         conn.executescript(SCHEMA)
 
@@ -230,14 +306,16 @@ def import_feed(feed: Path, db_path: Path) -> dict[str, int]:
         }
         dates += _calendar_dates(_read(zf, "calendar.txt"), services, removed)
         conn.executemany("INSERT OR IGNORE INTO service_dates VALUES (?, ?)", dates)
-        conn.executescript(INDEXES)
-        conn.execute("INSERT INTO meta VALUES ('imported_at', datetime('now'))")
         stats = {
             "routes": len(routes),
             "trips": len(trips),
             "stations": len(used_stations),
             "dates": len(dates),
         }
+        if wkd_feed is not None:
+            stats |= import_wkd(conn, wkd_feed, first_pk=len(trips) + 1)
+        conn.executescript(INDEXES)
+        conn.execute("INSERT INTO meta VALUES ('imported_at', datetime('now'))")
     log.info("GTFS import: %s", stats)
     return stats
 

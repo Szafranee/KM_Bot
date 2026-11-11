@@ -1,6 +1,7 @@
 # 🚆 KM Bot
 
-Telegram bot ([@kmkobot](https://t.me/kmkobot)) for passengers of **Koleje Mazowieckie** and **SKM Warszawa**.
+Telegram bot ([@kmkobot](https://t.me/kmkobot)) for passengers of **Koleje Mazowieckie**, **SKM Warszawa** and
+**WKD** (Warszawska Kolej Dojazdowa).
 It started as a way to check the rolling stock of a KM train by its number without digging through
 KM's PDF lists, and now also shows live departures, delays and direct connections.
 
@@ -8,25 +9,39 @@ KM's PDF lists, and now also shows live departures, delays and direct connection
 
 | | What you type / tap | What you get |
 | --- | --- | --- |
-| 🚉 Departures | `Śródmieście`, `Koło`, `zach`, `wwa centralna`, `lotnisko`, `Śródmieście 17:30` | Next 5 KM + SKM departures with delay, platform and rolling stock; paging ◀ ▶, refresh, details 1–5 |
+| 🚉 Departures | `Śródmieście`, `Koło`, `zach`, `wwa centralna`, `lotnisko`, `Śródmieście 17:30` | Next 5 KM, SKM and WKD departures with delay, **platform**, direction and rolling stock (KM); paging ◀ ▶, refresh, details 1–5. A train that just left by schedule stays for a few minutes, flagged ⏱, because it may be late |
 | 🔢 Train number | `91450`, `91450/1`, `/pociag 51136` | Rolling stock (e.g. *2× Flirt 3*, *EU47 + 6 wagonów piętrowych*) with photo, full route with times, platforms and per-stop delays, status; previous/next day |
 | 🧭 Routes | `Nowa Iwiczna > Służewiec`, `Koło - Wschodnia 17:30`, `Błonie, Pilawa, 08:01` | Direct trains only – departure, arrival, travel time, stock, delay; save ⭐ to *Moje trasy*, reverse ⇄ |
 | ⭐ Favourites | ⭐ on a departure board | One-tap boards for favourite stations |
-| 📍 Location | share location | 3 nearest KM/SKM stations |
+| 📍 Location | share location | 3 nearest stations |
 | 🔔 Tracking | 🔔 on a train card | Notification when the delay changes by ≥3 min, when the train is cancelled and ~10 min before departure from your station |
-| 📖 Tutorial | `/samouczek`, "❓ Pomoc" in the menu, offered after `/start` | 7-page guide with "▶ Wypróbuj" buttons that show real live examples, plus a legend of all symbols |
+| 📖 Tutorial | `/samouczek`, `/pomoc`, offered after `/start` (no permanent menu button) | 7-page guide with "▶ Wypróbuj" buttons that show real live examples, plus a legend of all symbols |
 
 Station search understands Warsaw shortcuts (*Śródmieście → Warszawa Śródmieście*, *Koło → Warszawa Koło*),
 abbreviations (*wwa*, *zach*, *maz*), colloquial names (*Okęcie*, *lotnisko*, *centralny*) and declined
-forms (*z Wschodniej*, *do Otwocka*). Only stations served by KM or SKM are searched, so Mazovian stations
-come first naturally; ambiguous queries show a short list to pick from.
+forms (*z Wschodniej*, *do Otwocka*). Only stations served by KM, SKM or WKD are searched, so Mazovian stations
+come first naturally; ambiguous queries show a short list to pick from. WKD stations that share a name with a
+KM station need the suffix (*Śródmieście WKD*). *Warszawa Zachodnia (Peron 9)* is a station of its own (S4, S40,
+R80 and R90 stop there), as in other timetable apps; type *zachodnia peron 9*.
+
+### Menu and live board rules
+
+* Menu: `Odjazdy | Moje trasy`, `Numer pociągu | Ulubione`, `Najbliższa stacja | Obserwowane`. Help is not a
+  button any more; users still on the old keyboard get the new one when they tap the old “❓ Pomoc”.
+* Board look-back (`km_bot/bot/board.py`): a delayed train stays until its *expected* departure; an on-time or
+  unreported one stays 3 minutes after its scheduled time (5 minutes when the next train is more than 12 minutes
+  away); a train confirmed as gone is dropped at once; cancelled ones are never kept by the buffer.
+* Destructive buttons are red (`style=danger`, Bot API 9.4+; older clients show them plain) and name the action:
+  “🗑 Usuń z ulubionych”.
 
 ## Data sources
 
 | Data | Source | Refresh |
 | --- | --- | --- |
 | Timetable (stops, platforms, train numbers) | [Polish trains GTFS](https://mkuran.pl/gtfs/) by Mikołaj Kuranowski, built from the PKP PLK open data API | daily (downloaded only when changed) |
-| Delays and cancellations | [PKP PLK Otwarte Dane Kolejowe API](https://pdp-api.plk-sa.pl) when `PLK_API_KEY` is set, otherwise the [mkuran.pl realtime feed](https://mkuran.pl/gtfs/) (CC BY 4.0) | on demand, cached for 60 s |
+| WKD timetable | [WKD GTFS](https://mkuran.pl/gtfs/wkd.zip) (CC0, built from WKD's PDF timetables; rail trips only) | daily |
+| Delays and cancellations (KM, SKM) | [PKP PLK Otwarte Dane Kolejowe API](https://pdp-api.plk-sa.pl) when `PLK_API_KEY` is set, otherwise the [mkuran.pl realtime feed](https://mkuran.pl/gtfs/) (CC BY 4.0) | on demand, cached for 60 s |
+| Delays (WKD) | [mkuran.pl `wkd.pb`](https://mkuran.pl/gtfs/wkd.pb): GTFS-Realtime scraped from the live map on wkd.com.pl, predicted departures of the stops ahead | on demand, cached for 30 s |
 | Rolling stock | "Zestawienie pociągów KM kursujących w dniach …" PDFs from [mazowieckie.com.pl](https://www.mazowieckie.com.pl/pl/kategoria/tabele-rozkladow-jazdy) | daily |
 
 Usage follows the PKP PLK and Koleje Mazowieckie public sector information terms; the realtime feed is

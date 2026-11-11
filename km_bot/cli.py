@@ -19,11 +19,25 @@ TRACKER_INTERVAL = 120
 
 def refresh_gtfs(settings: Settings, force: bool = False) -> None:
     from km_bot import db
-    from km_bot.timetable.gtfs_import import download_feed, import_feed
+    from km_bot.timetable.gtfs_import import WKD_GTFS_URL, download_feed, import_feed
 
-    downloaded = download_feed(settings.gtfs_path, force=force)
-    if downloaded or force or not db.exists(settings.timetable_db):
-        import_feed(settings.gtfs_path, settings.timetable_db)
+    changed = download_feed(settings.gtfs_path, force=force)
+    wkd_path = settings.wkd_gtfs_path
+    try:
+        changed |= download_feed(wkd_path, url=WKD_GTFS_URL, force=force)
+    except Exception:
+        log.exception("Downloading the WKD feed failed - WKD stays as it was")
+    if not (changed or force or not db.exists(settings.timetable_db)):
+        return
+    wkd_feed = wkd_path if wkd_path.exists() else None
+    try:
+        import_feed(settings.gtfs_path, settings.timetable_db, wkd_feed)
+    except Exception:
+        if wkd_feed is None:
+            raise
+        # A broken WKD feed must not keep the KM/SKM timetable from updating.
+        log.exception("Import with WKD failed - importing KM/SKM only")
+        import_feed(settings.gtfs_path, settings.timetable_db, None)
 
 
 def refresh_rolling_stock(settings: Settings, download: bool = True) -> None:

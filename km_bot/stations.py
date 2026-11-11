@@ -33,6 +33,10 @@ ALIASES: dict[str, str] = {
     "lotnisko modlin": "Lotnisko Modlin",
     "stadion narodowy": "Warszawa Stadion",
     "zoo": "Warszawa Zoo",
+    # Peron 9 is a separate station: S4, S40, R80 and R90 stop there, not at the main Zachodnia platforms.
+    "zachodnia 9": "Warszawa Zachodnia (Peron 9)",
+    "zachodnia p9": "Warszawa Zachodnia (Peron 9)",
+    "zach 9": "Warszawa Zachodnia (Peron 9)",
 }
 
 MAIN_STATION_TOKENS = {"glowny", "glowna", "centralna"}
@@ -129,8 +133,6 @@ def _stem(token: str) -> str:
 def _rank(query_norm: str, query_tokens: list[str], stations: Iterable[Station]) -> list[Match]:
     matches = []
     for station in stations:
-        if is_secondary(station.name):
-            continue
         score = _score(query_norm, query_tokens, station)
         if score > 0:
             matches.append(Match(station, score))
@@ -178,15 +180,6 @@ def is_confident(matches: list[Match]) -> bool:
     best_name = normalize(best.station.name)
     rivals = [m for m in matches[1:] if round(m.score) >= round(best.score) - 2]
     return best.score >= 80 and all(normalize(m.station.name).startswith(best_name + " ") for m in rivals)
-
-
-def group_name(name: str) -> str:
-    """'Warszawa Zachodnia (Peron 9)' -> 'Warszawa Zachodnia'."""
-    return re.sub(r"\s*\(.*\)\s*$", "", name).strip()
-
-
-def is_secondary(name: str) -> bool:
-    return group_name(name) != name.strip()
 
 
 def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

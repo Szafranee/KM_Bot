@@ -64,6 +64,10 @@ class Settings:
         return self.data_dir / "polish_trains.zip"
 
     @property
+    def wkd_gtfs_path(self) -> Path:
+        return self.data_dir / "wkd.zip"
+
+    @property
     def image_base_url(self) -> str:
         return f"{self.public_base_url.rstrip('/')}/img" if self.public_base_url else ""
 

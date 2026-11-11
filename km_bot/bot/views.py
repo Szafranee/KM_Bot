@@ -12,6 +12,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from km_bot import stations as station_search
 from km_bot.bot import callbacks as cb
+from km_bot.bot.board import EXTRA_CANDIDATES, LOOKBACK, select_visible
 from km_bot.bot.services import Services
 from km_bot.config import TZ
 from km_bot.realtime.base import StopStatus, TripRequest, TripStatus
@@ -37,8 +38,9 @@ class View:
         return InlineKeyboardMarkup(self.buttons) if self.buttons else None
 
 
-def button(text: str, *data: object) -> InlineKeyboardButton:
-    return InlineKeyboardButton(text, callback_data=cb.make(*data))
+def button(text: str, *data: object, style: str | None = None) -> InlineKeyboardButton:
+    """Inline button. ``style`` ("success", "danger", "primary") colours it in clients that support Bot API 9.4+."""
+    return InlineKeyboardButton(text, callback_data=cb.make(*data), style=style)
 
 
 def esc(text: object) -> str:
@@ -65,8 +67,9 @@ def title_case(name: str) -> str:
 
 def trip_label(trip: TripInfo) -> str:
     kind = "🚌 ZKA" if trip.is_bus else trip.carrier
+    line = "" if trip.route == kind else f" {trip.route}"  # WKD has a single line that is also called WKD
     name = f" „{title_case(trip.name)}”" if trip.name else ""
-    return f"{kind} {trip.route} · {trip.number}{name}"
+    return f"{kind}{line} · {trip.number}{name}"
 
 
 def delay_text(
@@ -137,19 +140,21 @@ def realtime_footer(result: RealtimeResult) -> str:
 START_TEXT = (
     "Cześć! 👋 Jestem botem <b>Kolei Mazowieckich</b>.\n\n"
     "• Napisz <b>nazwę stacji</b> (np. <i>Śródmieście</i>, <i>Koło</i>, <i>Zachodnia</i>), a pokażę najbliższe "
-    "odjazdy KM i SKM z opóźnieniami i typem taboru.\n"
+    "odjazdy KM, SKM i WKD z opóźnieniami i typem taboru.\n"
     "• Napisz <b>numer pociągu</b> (np. <i>91450</i>), a powiem, jaki to skład i gdzie jest.\n"
     "• Napisz <b>trasę</b> (np. <i>Nowa Iwiczna &gt; Służewiec</i> lub <i>Koło - Wschodnia 17:30</i>), a pokażę "
     "pociągi bezpośrednie.\n"
     "• Wyślij <b>lokalizację</b>, a znajdę najbliższe stacje.\n\n"
-    "Menu na dole ekranu prowadzi do ulubionych stacji, zapisanych tras i obserwowanych pociągów, "
-    "a „❓ Pomoc” – do samouczka."
+    "Menu na dole ekranu prowadzi do tras, ulubionych stacji i obserwowanych pociągów. "
+    "Pomoc i samouczek: /pomoc, /samouczek."
 )
 
 HELP_TEXT = (
     "<b>Jak korzystać z bota</b>\n\n"
     "🚉 <b>Odjazdy</b> – wpisz nazwę stacji. Skróty działają: <i>Śródmieście</i>, <i>zach</i>, <i>wwa centralna</i>, "
-    "<i>lotnisko</i>. Przyciski 1–5 pokazują szczegóły kursu, ◀ ▶ przewijają listę.\n"
+    "<i>lotnisko</i>. Dla WKD dopisz „WKD”: <i>Śródmieście WKD</i>, <i>Podkowa Leśna Główna</i>. "
+    "Przyciski 1–5 pokazują szczegóły kursu, ◀ ▶ przewijają listę. Pociąg, który wg rozkładu dopiero co odjechał, "
+    "zostaje na liście jeszcze chwilę (z adnotacją), bo mógł się spóźnić.\n"
     "🔢 <b>Numer pociągu</b> – np. <i>91450</i> lub <i>91450/1</i>: typ taboru wg zestawienia KM, trasa i opóźnienie.\n"
     "🧭 <b>Trasy</b> – <i>Nowa Iwiczna &gt; Służewiec</i>, <i>Koło - Wschodnia 17:30</i>. Zapisz trasę ⭐, by mieć ją "
     "pod ręką w „Moje trasy”.\n"
@@ -160,7 +165,8 @@ HELP_TEXT = (
     "Komendy: /odjazdy &lt;stacja&gt;, /pociag &lt;numer&gt;, /trasy, /ulubione, /obserwowane, /samouczek, "
     "/info.\n\n"
     "<i>Dane: rozkład i opóźnienia PKP PLK (Otwarte Dane Kolejowe, GTFS mkuran.pl, CC BY 4.0), "
-    "typ taboru z zestawień Kolei Mazowieckich.</i>"
+    "WKD: rozkład i opóźnienia z wkd.com.pl przez mkuran.pl, typ taboru z zestawień Kolei Mazowieckich "
+    "(tylko KM).</i>"
 )
 
 
@@ -178,7 +184,7 @@ def search_stations(svc: Services, query: str) -> list[station_search.Match]:
 def station_choice_view(matches: list[station_search.Match], mode: str, query: str) -> View:
     if not matches:
         return View(
-            f"🤷 Nie znalazłem stacji „{esc(query)}” obsługiwanej przez KM lub SKM.\n"
+            f"🤷 Nie znalazłem stacji „{esc(query)}” obsługiwanej przez KM, SKM lub WKD.\n"
             "Spróbuj innej nazwy, np. <i>Śródmieście</i>, <i>Wschodnia</i>, <i>Otwock</i>."
         )
     prompt = {"d": "Którą stację masz na myśli?", "f": "Skąd jedziesz?", "t": "Dokąd jedziesz?"}.get(mode, "")
@@ -190,11 +196,11 @@ def station_choice_view(matches: list[station_search.Match], mode: str, query: s
 
 def nearest_view(svc: Services, lat: float, lon: float, mode: str = "d") -> View:
     found = station_search.nearest(lat, lon, svc.timetable.stations().values(), limit=4)
-    found = [(s, d) for s, d in found if not station_search.is_secondary(s.name)][:3]
+    found = found[:3]
     if not found:
         return View(NO_TIMETABLE)
     if found[0][1] > 30:
-        return View("📍 W pobliżu nie ma stacji Kolei Mazowieckich ani SKM.")
+        return View("📍 W pobliżu nie ma stacji KM, SKM ani WKD.")
     rows = [[button(f"📍 {s.name} ({d:.1f} km)", cb.PICK, s.id, mode)] for s, d in found]
     return View("📍 Najbliższe stacje:", rows)
 
@@ -210,6 +216,32 @@ def _board_requests(items: Sequence[Departure | Connection], station_ids: tuple[
     return requests
 
 
+LEFT_TEXT = "⏱ wg rozkładu już odjechał"
+
+
+def _live_page(
+    svc: Services,
+    fetch,
+    stop_of,
+    station_ids: tuple[str, ...],
+    now: datetime,
+    at: datetime | None,
+    offset: int,
+) -> tuple[list[tuple[Departure | Connection, bool]], RealtimeResult]:
+    """One page of a board plus its realtime data.
+
+    With a custom start time the list is exactly what the timetable says. A live board also looks back
+    (see ``board.py``) so a train that just left, or is late, does not vanish early.
+    """
+    if at is not None:
+        items = fetch(at, PAGE_SIZE, offset)
+        return [(item, False) for item in items], svc.realtime.statuses(_board_requests(items, station_ids))
+    candidates = fetch(now - LOOKBACK, offset + PAGE_SIZE + EXTRA_CANDIDATES, 0)
+    realtime = svc.realtime.statuses(_board_requests(candidates, station_ids))
+    visible = select_visible(candidates, stop_of, lambda i: (i.trip.trip_id, i.service_date), realtime, now)
+    return visible[offset : offset + PAGE_SIZE], realtime
+
+
 def departures_view(
     svc: Services, user_id: int, station_id: str, offset: int, now: datetime, at: datetime | None = None
 ) -> View:
@@ -217,18 +249,26 @@ def departures_view(
     if station is None:
         return View(NO_TIMETABLE if not svc.timetable.available() else "Ta stacja nie jest już dostępna.")
     offset = max(offset, 0)
-    departures = svc.timetable.departures(station_id, at or now, limit=PAGE_SIZE, offset=offset)
     at_arg = cb.encode_at(at)
-    group = tuple(svc.timetable.station_group(station_id))
-    realtime = svc.realtime.statuses(_board_requests(departures, group))
+    group = (station_id,)
+    page, realtime = _live_page(
+        svc,
+        lambda start, limit, skip: svc.timetable.departures(station_id, start, limit=limit, offset=skip),
+        lambda dep: dep.stop,
+        group,
+        now,
+        at,
+        offset,
+    )
+    departures = [dep for dep, _ in page]
 
-    lines = [f"🚉 <b>{esc(station.name)}</b>", f"<i>Odjazdy KM i SKM{_since(at, now)} · stan na {hhmm(now)}</i>", ""]
+    lines = [f"🚉 <b>{esc(station.name)}</b>", f"<i>Odjazdy{_since(at, now)} · stan na {hhmm(now)}</i>", ""]
     if not departures:
         lines.append("Brak odjazdów w najbliższym czasie.")
-    for index, dep in enumerate(departures, start=1):
+    for index, (dep, left) in enumerate(page, start=1):
         status = realtime.get((dep.trip.trip_id, dep.service_date))
         stop_status = status.at(dep.stop.seq) if status else None
-        delay = delay_text(stop_status, status, dep.stop.departure, now)
+        delay = LEFT_TEXT if left else delay_text(stop_status, status, dep.stop.departure, now)
         day = "" if dep.stop.time.date() == now.date() else f" ({day_label(dep.stop.time.date(), now.date())})"
         note = esc(dep.stop.station_name) if dep.stop.station_id != station_id else ""
         lines += board_entry(
@@ -256,15 +296,12 @@ def departures_view(
     if departures:
         nav.append(button("Później ▶", cb.DEPARTURES, station_id, offset + PAGE_SIZE, at_arg))
     rows.append(nav)
-    favorite = svc.storage.is_favorite_station(user_id, station_id)
-    rows.append(
-        [
-            button("★ Usuń z ulubionych", cb.FAV_DEL, station_id, "b")
-            if favorite
-            else button("⭐ Do ulubionych", cb.FAV_ADD, station_id),
-            button("🧭 Trasa stąd", cb.ROUTE_FROM_HERE, station_id),
-        ]
-    )
+    if svc.storage.is_favorite_station(user_id, station_id):
+        # The label names the action (a filled star next to "remove" read like "already a favourite").
+        rows.append([button("🗑 Usuń z ulubionych", cb.FAV_DEL, station_id, "b", style="danger")])
+    else:
+        rows.append([button("⭐ Dodaj do ulubionych", cb.FAV_ADD, station_id)])
+    rows.append([button("🧭 Trasa stąd", cb.ROUTE_FROM_HERE, station_id)])
     return View("\n".join(lines), rows)
 
 
@@ -300,20 +337,32 @@ def connections_view(
     if origin is None or target is None:
         return View(NO_TIMETABLE if not svc.timetable.available() else "Ta trasa nie jest już dostępna.")
     offset = max(offset, 0)
-    connections = svc.timetable.connections(from_id, to_id, at or now, limit=PAGE_SIZE, offset=offset)
     at_arg = cb.encode_at(at)
-    realtime = svc.realtime.statuses(_board_requests(connections, tuple(svc.timetable.station_group(from_id))))
+    page, realtime = _live_page(
+        svc,
+        lambda start, limit, skip: svc.timetable.connections(from_id, to_id, start, limit=limit, offset=skip),
+        lambda con: con.origin,
+        (from_id,),
+        now,
+        at,
+        offset,
+    )
+    connections = [con for con, _ in page]
 
     lines = [
         f"🧭 <b>{esc(origin.name)} → {esc(target.name)}</b>",
-        f"<i>Pociągi bezpośrednie KM i SKM{_since(at, now)} · stan na {hhmm(now)}</i>",
+        f"<i>Pociągi bezpośrednie{_since(at, now)} · stan na {hhmm(now)}</i>",
         "",
     ]
     if not connections:
         lines.append("Brak bezpośrednich połączeń w najbliższym czasie.")
-    for index, con in enumerate(connections, start=1):
+    for index, (con, left) in enumerate(page, start=1):
         status = realtime.get((con.trip.trip_id, con.service_date))
-        delay = delay_text(status.at(con.origin.seq) if status else None, status, con.origin.departure, now)
+        delay = (
+            LEFT_TEXT
+            if left
+            else delay_text(status.at(con.origin.seq) if status else None, status, con.origin.departure, now)
+        )
         day = "" if con.origin.time.date() == now.date() else f" ({day_label(con.origin.time.date(), now.date())})"
         minutes = int((con.target.time - con.origin.time).total_seconds() // 60)
         times = f"{hhmm(con.origin.departure)} → {hhmm(con.target.arrival or con.target.departure)}{day}"
@@ -356,7 +405,7 @@ def connections_view(
             button("⇄ Odwrotnie", cb.ROUTE, reverse.id, 0)
             if reverse
             else button("⇄ Odwrotnie", cb.CONNECTIONS, to_id, from_id, 0),
-            button("🗑 Usuń trasę", cb.ROUTE_DEL, saved.id)
+            button("🗑 Usuń trasę", cb.ROUTE_DEL, saved.id, style="danger")
             if saved
             else button("⭐ Zapisz trasę", cb.ROUTE_SAVE, from_id, to_id),
         ]
@@ -426,7 +475,7 @@ def trip_view(
     lines.append("")
 
     next_seq = _next_stop_seq(status, details, now)
-    highlighted = set(svc.timetable.station_group(station_id)) if station_id else set()
+    highlighted = {station_id} if station_id else set()
     for stop in stops:
         stop_status = status.at(stop.seq) if status else None
         moment = stop.departure if stop is not last else stop.arrival
@@ -593,7 +642,10 @@ def favorites_view(svc: Services, user_id: int) -> View:
             "⭐ Nie masz jeszcze ulubionych stacji.\n"
             "Wpisz nazwę stacji i na tablicy odjazdów kliknij „⭐ Do ulubionych”."
         )
-    rows = [[button(f"🚉 {name}", cb.DEPARTURES, sid, 0), button("✖", cb.FAV_DEL, sid, "l")] for sid, name in favorites]
+    rows = [
+        [button(f"🚉 {name}", cb.DEPARTURES, sid, 0), button("🗑", cb.FAV_DEL, sid, "l", style="danger")]
+        for sid, name in favorites
+    ]
     return View("⭐ <b>Ulubione stacje</b> – kliknij, aby zobaczyć odjazdy:", rows)
 
 
@@ -628,7 +680,7 @@ def watches_view(svc: Services, chat_id: int, now: datetime) -> View:
                         "",
                     ),
                 ),
-                button("✖", cb.UNWATCH, watch.id, "l"),
+                button("🔕", cb.UNWATCH, watch.id, "l", style="danger"),
             ]
         )
     return View("🔔 <b>Obserwowane pociągi</b>", rows)
@@ -643,6 +695,10 @@ def info_view(svc: Services, now: datetime) -> View:
             f"Rozkład (GTFS): {start[6:8]}.{start[4:6]}–{end[6:8]}.{end[4:6]}.{end[:4]}, "
             f"import {esc(meta.get('imported_at', '?'))} UTC"
         )
+        if meta.get("wkd_feed_version"):
+            lines.append(f"WKD: rozkład z {esc(meta['wkd_feed_version'][:10])}")
+        else:
+            lines.append("WKD: brak w rozkładzie")
     else:
         lines.append("Rozkład: brak")
     pdfs = svc.rolling_stock.pdfs()
@@ -651,7 +707,8 @@ def info_view(svc: Services, now: datetime) -> View:
         lines.extend(f"• {esc(p.name)}" for p in pdfs)
     else:
         lines.append("Zestawienia taboru: brak")
-    providers = ", ".join(p.name for p in svc.realtime.providers)
+    names = [p.name for p in svc.realtime.providers] + ([svc.realtime.wkd.name] if svc.realtime.wkd else [])
+    providers = ", ".join(names)
     lines.append(f"Źródła opóźnień: {esc(providers)}")
     lines.append(f"\n<i>{hhmm(now)}</i>")
     return View("\n".join(lines))

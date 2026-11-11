@@ -8,7 +8,10 @@ from tests.conftest import DAY, SATURDAY, at
 def test_only_km_and_skm_are_imported(timetable: TimetableRepository):
     assert timetable.trips_by_number("1234", DAY) == []
     assert timetable.meta()["feed_version"] == "test"
-    assert set(timetable.stations()) == {"100", "101", "102", "103", "104", "105", "106", "107"}
+    assert set(timetable.stations()) == {
+        "100", "101", "102", "103", "104", "105", "106", "107",
+        "WKD_wsrod", "WKD_wzach", "WKD_gmrad",
+    }  # fmt: skip
 
 
 def test_split_train_name():
@@ -34,17 +37,17 @@ def test_departures_paging(timetable):
 
 
 def test_after_midnight_trip_belongs_to_previous_service_day(timetable):
-    departures = timetable.departures("100", at(0, 0, date(2026, 10, 10)))
+    departures = timetable.departures("101", at(0, 0, date(2026, 10, 10)))  # Zachodnia (Peron 9)
     ciechan = next(d for d in departures if d.trip.number == "51136")
     assert ciechan.service_date == DAY
     assert ciechan.stop.departure == at(0, 5, SATURDAY)
     assert ciechan.trip.name == "CIECHAN"
 
 
-def test_station_group_includes_secondary_platform_station(timetable):
-    assert timetable.station_group("100") == ["100", "101"]
-    numbers = {d.trip.number for d in timetable.departures("100", at(23, 0))}
-    assert "51136" in numbers  # departs from "Warszawa Zachodnia (Peron 9)"
+def test_zachodnia_peron_9_is_a_separate_station(timetable):
+    main = {d.trip.number for d in timetable.departures("100", at(23, 0))}
+    peron9 = {d.trip.number for d in timetable.departures("101", at(23, 0))}
+    assert "51136" in peron9 and "51136" not in main  # S4/S40/R80/R90 style trains use Peron 9 only
 
 
 def test_weekend_only_trip(timetable):
