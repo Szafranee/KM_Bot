@@ -168,7 +168,23 @@ def search(query: str, stations: Iterable[Station], limit: int = 5, hidden: Coll
             retry = _rank(" ".join(stemmed), stemmed, stations)
             if retry and (not matches or retry[0].score > matches[0].score):
                 matches = retry
-    return matches[:limit]
+    return _prefer_wkd(matches, "wkd" in query_tokens)[:limit]
+
+
+WKD_PREFERENCE = 6
+
+
+def _prefer_wkd(matches: list[Match], wants_wkd: bool) -> list[Match]:
+    """ "Aleje WKD" means the WKD station only; plain "Aleje" the merged KM/SKM one (which includes WKD).
+
+    The WKD station of a merged pair ties with its KM/SKM neighbour on name alone, so nudge the scores.
+    """
+    is_wkd = [m.station.id.startswith("WKD_") for m in matches]
+    if not any(is_wkd) or all(is_wkd):
+        return matches
+    shift = WKD_PREFERENCE if wants_wkd else -WKD_PREFERENCE
+    nudged = [Match(m.station, m.score + shift) if wkd else m for m, wkd in zip(matches, is_wkd, strict=True)]
+    return sorted(nudged, key=lambda m: -m.score)
 
 
 def is_confident(matches: list[Match]) -> bool:

@@ -139,3 +139,14 @@ class TestCallbacks:
         assert cb.back_to_callback(cb.back_route(3, 10)) == "R:3:10"
         assert cb.back_to_callback("") is None
         assert cb.back_to_callback("Zxx") is None
+
+
+def test_wkd_word_selects_the_wkd_station_and_its_absence_the_merged_one():
+    stations = [
+        Station("33456", "Warszawa Aleje Jerozolimskie", 52.22, 20.96, 100),
+        Station("WKD_walje", "Warszawa Aleje Jerozolimskie WKD", 52.22, 20.96, 100),
+    ]
+    plain = search.search("aleje", stations)
+    assert plain[0].station.id == "33456" and search.is_confident(plain)
+    only = search.search("aleje wkd", stations)
+    assert only[0].station.id == "WKD_walje" and search.is_confident(only)
