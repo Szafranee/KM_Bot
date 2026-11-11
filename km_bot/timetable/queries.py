@@ -9,6 +9,7 @@ from pathlib import Path
 
 from km_bot import db
 from km_bot.config import TZ
+from km_bot.station_groups import DEFAULT_GROUPS, StationGroups
 
 
 @dataclass(frozen=True)
@@ -134,8 +135,9 @@ def _ymd(day: date) -> str:
 
 
 class TimetableRepository:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, groups: StationGroups = DEFAULT_GROUPS):
         self.path = path
+        self.groups = groups
         self._stations_cache: tuple[float, dict[str, Station]] | None = None
 
     def available(self) -> bool:
@@ -163,6 +165,10 @@ class TimetableRepository:
     def station(self, station_id: str) -> Station | None:
         return self.stations().get(station_id)
 
+    def station_group(self, station_id: str) -> list[str]:
+        """Ids shown together with a station (WKD next door, Zachodnia + Peron 9), itself first."""
+        return self.groups.members(station_id, self.stations())
+
     def meta(self) -> dict[str, str]:
         if not self.available():
             return {}
@@ -178,6 +184,8 @@ class TimetableRepository:
         after = after.astimezone(TZ)
         wanted = offset + limit
         found: list[Departure] = []
+        ids = {f"s{i}": sid for i, sid in enumerate(self.station_group(station_id))}
+        placeholders = ", ".join(f":{key}" for key in ids)
         with self._conn() as conn:
             for day in (after.date() - timedelta(days=1), after.date(), after.date() + timedelta(days=1)):
                 min_seconds = int((after - service_day_start(day)).total_seconds())
@@ -190,11 +198,11 @@ class TimetableRepository:
                     JOIN service_dates sd ON sd.service_id = t.service_id AND sd.date = :day
                     JOIN stations s ON s.id = st.station_id
                     JOIN stations ls ON ls.id = t.last_station
-                    WHERE st.station_id = :station AND st.is_last = 0 AND st.pickup != 1
+                    WHERE st.station_id IN ({placeholders}) AND st.is_last = 0 AND st.pickup != 1
                       AND st.dep >= :min_seconds
                     ORDER BY st.dep LIMIT :limit
                     """,
-                    {"day": _ymd(day), "min_seconds": min_seconds, "limit": wanted, "station": station_id},
+                    {"day": _ymd(day), "min_seconds": min_seconds, "limit": wanted, **ids},
                 ).fetchall()
                 found.extend(Departure(_trip(r), day, _stop(r, day), r["destination_name"]) for r in rows)
         found.sort(key=lambda d: (d.stop.time, d.trip.number))
@@ -209,6 +217,10 @@ class TimetableRepository:
         after = after.astimezone(TZ)
         wanted = offset + limit
         found: list[Connection] = []
+        origin_ids = {f"o{i}": sid for i, sid in enumerate(self.station_group(from_id))}
+        target_ids = {f"t{i}": sid for i, sid in enumerate(self.station_group(to_id))}
+        origins = ", ".join(f":{key}" for key in origin_ids)
+        targets = ", ".join(f":{key}" for key in target_ids)
         with self._conn() as conn:
             for day in (after.date() - timedelta(days=1), after.date(), after.date() + timedelta(days=1)):
                 min_seconds = int((after - service_day_start(day)).total_seconds())
@@ -229,11 +241,11 @@ class TimetableRepository:
                     JOIN stations sa ON sa.id = a.station_id
                     JOIN stations sb ON sb.id = b.station_id
                     JOIN stations ls ON ls.id = t.last_station
-                    WHERE a.station_id = :origin AND b.station_id = :target
+                    WHERE a.station_id IN ({origins}) AND b.station_id IN ({targets})
                       AND a.pickup != 1 AND b.dropoff != 1 AND a.dep >= :min_seconds
                     ORDER BY a.dep LIMIT :limit
                     """,
-                    {"day": _ymd(day), "min_seconds": min_seconds, "limit": wanted, "origin": from_id, "target": to_id},
+                    {"day": _ymd(day), "min_seconds": min_seconds, "limit": wanted, **origin_ids, **target_ids},
                 ).fetchall()
                 found.extend(
                     Connection(_trip(r), day, _stop(r, day), _stop(r, day, "b_"), r["destination_name"]) for r in rows

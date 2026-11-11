@@ -318,7 +318,7 @@ async def finish_route(update, context, from_id: str, to_id: str, at, save: bool
     svc = services(context)
     user_id = update.effective_user.id
     await in_thread(svc.storage.clear_state, user_id)
-    if from_id == to_id:
+    if set(svc.timetable.station_group(from_id)) & set(svc.timetable.station_group(to_id)):
         view = View("🤔 Stacja początkowa i końcowa są takie same.")
     elif save:
         origin, target = svc.timetable.station(from_id), svc.timetable.station(to_id)

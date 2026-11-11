@@ -88,14 +88,36 @@ def delay_text(
     return "🟢 planowo" if started or soon else ""
 
 
-def platform_text(stop: StopTime) -> str:
-    if not stop.platform:
+def platform_text(stop: StopTime, marker: str | None = None) -> str:
+    """ "peron 2, tor 3" - or the group marker ("🔶 Peron 9") for a platform group shown on a merged board."""
+    if not stop.platform and not marker:
         return ""
-    return f"<b>peron {esc(stop.platform)}" + (f", tor {esc(stop.track)}" if stop.track else "") + "</b>"
+    label = marker or f"peron {esc(stop.platform)}"
+    return f"<b>{label}" + (f", tor {esc(stop.track)}" if stop.track else "") + "</b>"
+
+
+def delay_or_left(
+    left: bool, status: StopStatus | None, trip_status: TripStatus | None, scheduled: datetime | None, now: datetime
+) -> str:
+    """Delay text; for a train kept only by the board buffer it also says the train may be gone."""
+    delay = delay_text(status, trip_status, scheduled, now)
+    if not left:
+        return delay
+    if status is not None and status.delay is not None and status.delay > 0:
+        return f"{delay} · {MAYBE_LEFT_TEXT}"
+    return LEFT_TEXT
 
 
 def board_entry(
-    index: int, times: str, delay: str, trip: TripInfo, stop: StopTime, destination: str, stock: str, note: str = ""
+    index: int,
+    times: str,
+    delay: str,
+    trip: TripInfo,
+    stop: StopTime,
+    destination: str,
+    stock: str,
+    note: str = "",
+    marker: str | None = None,
 ) -> list[str]:
     """One train on a board: times + delay / train + platform / direction / rolling stock.
 
@@ -104,7 +126,7 @@ def board_entry(
     """
     lines = [f"<b>{index}. {times}</b>" + (f"  <b>{delay}</b>" if delay else "")]
     train = [esc(trip_label(trip))]
-    if platform := platform_text(stop):
+    if platform := platform_text(stop, marker):
         train.append(platform)
     elif note:
         train.append(note)
@@ -178,7 +200,7 @@ def help_view() -> View:
 
 
 def search_stations(svc: Services, query: str) -> list[station_search.Match]:
-    return station_search.search(query, svc.timetable.stations().values())
+    return station_search.search(query, svc.timetable.stations().values(), hidden=svc.timetable.groups.hidden())
 
 
 def station_choice_view(matches: list[station_search.Match], mode: str, query: str) -> View:
@@ -195,8 +217,9 @@ def station_choice_view(matches: list[station_search.Match], mode: str, query: s
 
 
 def nearest_view(svc: Services, lat: float, lon: float, mode: str = "d") -> View:
-    found = station_search.nearest(lat, lon, svc.timetable.stations().values(), limit=4)
-    found = found[:3]
+    hidden = svc.timetable.groups.hidden()
+    candidates = (s for s in svc.timetable.stations().values() if s.id not in hidden)
+    found = station_search.nearest(lat, lon, candidates, limit=3)
     if not found:
         return View(NO_TIMETABLE)
     if found[0][1] > 30:
@@ -217,6 +240,16 @@ def _board_requests(items: Sequence[Departure | Connection], station_ids: tuple[
 
 
 LEFT_TEXT = "⏱ wg rozkładu już odjechał"
+MAYBE_LEFT_TEXT = "⏱ mógł już odjechać"
+
+
+def merged_with(svc: Services, station_id: str) -> str:
+    """ "Peron 9, WKD" - what a merged board includes besides the station itself."""
+    labels = []
+    for member in svc.timetable.groups.extras(station_id, svc.timetable.stations()):
+        label = "WKD" if member.startswith("WKD_") else svc.timetable.groups.markers.get(member, "")
+        labels.append(label.removeprefix("🔶 ") or (svc.timetable.station(member) or member).name)
+    return ", ".join(dict.fromkeys(labels))
 
 
 def _live_page(
@@ -230,15 +263,13 @@ def _live_page(
 ) -> tuple[list[tuple[Departure | Connection, bool]], RealtimeResult]:
     """One page of a board plus its realtime data.
 
-    With a custom start time the list is exactly what the timetable says. A live board also looks back
-    (see ``board.py``) so a train that just left, or is late, does not vanish early.
+    The board looks back from its reference time - now, or the start time asked for - so a train that just
+    left, or is late, does not vanish early (see ``board.py``). Delays and the buffer apply to custom times too.
     """
-    if at is not None:
-        items = fetch(at, PAGE_SIZE, offset)
-        return [(item, False) for item in items], svc.realtime.statuses(_board_requests(items, station_ids))
-    candidates = fetch(now - LOOKBACK, offset + PAGE_SIZE + EXTRA_CANDIDATES, 0)
+    ref = at or now
+    candidates = fetch(ref - LOOKBACK, offset + PAGE_SIZE + EXTRA_CANDIDATES, 0)
     realtime = svc.realtime.statuses(_board_requests(candidates, station_ids))
-    visible = select_visible(candidates, stop_of, lambda i: (i.trip.trip_id, i.service_date), realtime, now)
+    visible = select_visible(candidates, stop_of, lambda i: (i.trip.trip_id, i.service_date), realtime, ref, now)
     return visible[offset : offset + PAGE_SIZE], realtime
 
 
@@ -250,7 +281,8 @@ def departures_view(
         return View(NO_TIMETABLE if not svc.timetable.available() else "Ta stacja nie jest już dostępna.")
     offset = max(offset, 0)
     at_arg = cb.encode_at(at)
-    group = (station_id,)
+    group = tuple(svc.timetable.station_group(station_id))
+    markers = svc.timetable.groups.markers
     page, realtime = _live_page(
         svc,
         lambda start, limit, skip: svc.timetable.departures(station_id, start, limit=limit, offset=skip),
@@ -262,13 +294,16 @@ def departures_view(
     )
     departures = [dep for dep, _ in page]
 
-    lines = [f"🚉 <b>{esc(station.name)}</b>", f"<i>Odjazdy{_since(at, now)} · stan na {hhmm(now)}</i>", ""]
+    lines = [f"🚉 <b>{esc(station.name)}</b>", f"<i>Odjazdy{_since(at, now)} · stan na {hhmm(now)}</i>"]
+    if together := merged_with(svc, station_id):
+        lines.append(f"<i>razem z: {esc(together)}</i>")
+    lines.append("")
     if not departures:
         lines.append("Brak odjazdów w najbliższym czasie.")
     for index, (dep, left) in enumerate(page, start=1):
         status = realtime.get((dep.trip.trip_id, dep.service_date))
         stop_status = status.at(dep.stop.seq) if status else None
-        delay = LEFT_TEXT if left else delay_text(stop_status, status, dep.stop.departure, now)
+        delay = delay_or_left(left, stop_status, status, dep.stop.departure, now)
         day = "" if dep.stop.time.date() == now.date() else f" ({day_label(dep.stop.time.date(), now.date())})"
         note = esc(dep.stop.station_name) if dep.stop.station_id != station_id else ""
         lines += board_entry(
@@ -280,6 +315,7 @@ def departures_view(
             dep.destination_name,
             stock_text(svc.stock_for_trip(dep.trip, dep.service_date)),
             note,
+            markers.get(dep.stop.station_id) if station_id != dep.stop.station_id else None,
         )
     lines.append(f"<i>{realtime_footer(realtime)}</i>")
 
@@ -302,6 +338,9 @@ def departures_view(
     else:
         rows.append([button("⭐ Dodaj do ulubionych", cb.FAV_ADD, station_id)])
     rows.append([button("🧭 Trasa stąd", cb.ROUTE_FROM_HERE, station_id)])
+    if station_id in svc.timetable.groups.filters:
+        other, label = svc.timetable.groups.filters[station_id]
+        rows.append([button(label, cb.DEPARTURES, other, 0)])
     return View("\n".join(lines), rows)
 
 
@@ -358,11 +397,7 @@ def connections_view(
         lines.append("Brak bezpośrednich połączeń w najbliższym czasie.")
     for index, (con, left) in enumerate(page, start=1):
         status = realtime.get((con.trip.trip_id, con.service_date))
-        delay = (
-            LEFT_TEXT
-            if left
-            else delay_text(status.at(con.origin.seq) if status else None, status, con.origin.departure, now)
-        )
+        delay = delay_or_left(left, status.at(con.origin.seq) if status else None, status, con.origin.departure, now)
         day = "" if con.origin.time.date() == now.date() else f" ({day_label(con.origin.time.date(), now.date())})"
         minutes = int((con.target.time - con.origin.time).total_seconds() // 60)
         times = f"{hhmm(con.origin.departure)} → {hhmm(con.target.arrival or con.target.departure)}{day}"
@@ -374,6 +409,7 @@ def connections_view(
             con.origin,
             con.destination_name,
             stock_text(svc.stock_for_trip(con.trip, con.service_date)),
+            marker=svc.timetable.groups.markers.get(con.origin.station_id),
         )
     lines.append(f"<i>{realtime_footer(realtime)}</i>")
 
@@ -475,7 +511,7 @@ def trip_view(
     lines.append("")
 
     next_seq = _next_stop_seq(status, details, now)
-    highlighted = {station_id} if station_id else set()
+    highlighted = set(svc.timetable.station_group(station_id)) if station_id else set()
     for stop in stops:
         stop_status = status.at(stop.seq) if status else None
         moment = stop.departure if stop is not last else stop.arrival

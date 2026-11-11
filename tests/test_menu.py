@@ -31,10 +31,22 @@ def test_favourite_button_names_the_action(services):
     assert styles(views.favorites_view(services, 1))["🗑"] == "danger"
 
 
-def test_zachodnia_and_peron_9_are_different_stations(services):
-    main = views.departures_view(services, 1, "100", 0, at(23, 0)).text
-    peron9 = views.departures_view(services, 1, "101", 0, at(23, 0)).text
-    assert "Warszawa Zachodnia (Peron 9)" in peron9 and "51136" in peron9
-    assert "51136" not in main
-    matches = views.search_stations(services, "zachodnia peron 9")
-    assert matches[0].station.id == "101"
+def test_zachodnia_includes_peron_9_marked_and_peron_9_alone_filters(services):
+    everything = views.departures_view(services, 1, "100", 0, at(23, 0))
+    assert "51136" in everything.text and "🔶 Peron 9" in everything.text and "razem z: Peron 9, WKD" in everything.text
+    only = views.departures_view(services, 1, "101", 0, at(23, 0))
+    assert "Warszawa Zachodnia (Peron 9)" in only.text and "51136" in only.text
+    assert "Tylko peron 9" in str(everything.markup) and "Cała Zachodnia" in str(only.markup)
+    assert services.timetable.station_group("101") == ["101"]  # picked alone: only its own trains
+
+
+def test_peron_9_is_still_found_by_name_but_wkd_station_is_hidden(services):
+    assert views.search_stations(services, "zachodnia peron 9")[0].station.id == "101"
+    ids = {m.station.id for m in views.search_stations(services, "Śródmieście WKD")}
+    assert "WKD_wsrod" not in ids and views.search_stations(services, "Śródmieście WKD")[0].station.id == "102"
+
+
+def test_merged_station_lists_wkd_trains(services):
+    text = views.departures_view(services, 1, "102", 0, at(8, 0)).text
+    assert "WKD · 1000" in text and "razem z: WKD" in text
+    assert services.timetable.connections("102", "WKD_gmrad", at(8, 0))  # KM/SKM station -> WKD station

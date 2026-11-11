@@ -26,7 +26,7 @@ def test_departures_board(services, fake_realtime):
     assert all(len(d.encode()) <= 64 for d in _data(view))
     assert "⭐ Dodaj do ulubionych" in _texts(view)
     # The fake provider received one request per departure with the board station group.
-    assert {r.station_ids for r in fake_realtime.calls[-1]} == {("102",)}
+    assert {r.station_ids for r in fake_realtime.calls[-1]} == {("102", "WKD_wsrod")}
 
 
 def test_board_marks_favourite_and_paging(services):
