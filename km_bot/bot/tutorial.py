@@ -36,7 +36,11 @@ PAGES: tuple[Page, ...] = (
         "• <i>Otwock</i>, <i>Mińsk</i>, <i>Grodzisk</i> → stacje podmiejskie\n"
         "• <i>Śródmieście WKD</i>, <i>Podkowa Leśna Główna</i> → Warszawska Kolej Dojazdowa (dopisz „WKD”, gdy "
         "obok jest stacja KM o tej samej nazwie)\n"
-        "• <i>Zachodnia peron 9</i> → osobna stacja, z której jadą m.in. S4, S40, R80 i R90\n\n"
+        "• <i>Zachodnia</i> łączy KM, SKM, WKD i 🔶 Peron 9 (S4, S40, R80, R90); <i>Zachodnia peron 9</i> pokaże "
+        "tylko peron 9. Tak samo Śródmieście, Ochota i Aleje Jerozolimskie – razem z WKD; przycisk „🟩 Tylko WKD” "
+        "(albo wpisanie <i>Śródmieście WKD</i>) pokaże same pociągi WKD
+
+"
         "Chcesz zobaczyć pociągi na później? Dopisz godzinę: <i>Śródmieście 17:30</i>.\n\n"
         "Na tablicy widać 5 najbliższych pociągów KM, SKM i WKD: godzinę, opóźnienie, numer i <b>peron</b>, "
         "kierunek oraz typ taboru. Pociąg, który wg rozkładu dopiero co odjechał, zostaje jeszcze na liście "
